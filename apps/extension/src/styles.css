@@ -1,9 +1,11 @@
 @import "tailwindcss";
-:root { font-family: "Manrope", ui-sans-serif, sans-serif; color: #171916; background: #f4f3ef; }
+:root { font-family: "Avenir Next", "PingFang SC", ui-sans-serif, sans-serif; color: #172033; background: #f4f6fa; }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; }
+html, body, #root { margin: 0; min-width: 396px; min-height: 560px; }
+body { width: 396px; max-height: 640px; overflow-x: hidden; }
 button, input, textarea, select { font: inherit; }
 .font-mono { font-family: "SFMono-Regular", Consolas, monospace; }
 .focus-ring:focus-visible { outline: 3px solid #164dd847; outline-offset: 2px; }
+.pinhere-popup { background-image: linear-gradient(rgba(22, 77, 216, .035) 1px, transparent 1px), linear-gradient(90deg, rgba(22, 77, 216, .035) 1px, transparent 1px); background-size: 22px 22px; }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .rise { animation: rise .35s ease-out both; }

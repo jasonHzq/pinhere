@@ -4,11 +4,25 @@
   "description": "圈选网页 DOM，将精确缺陷上下文交给 AI 编程 Agent。",
   "version": "0.1.0",
   "minimum_chrome_version": "116",
-  "permissions": ["activeTab", "scripting", "storage", "identity", "sidePanel"],
+  "permissions": ["activeTab", "scripting", "storage", "identity"],
   "host_permissions": ["https://pinhere.dev/*"],
   "background": { "service_worker": "background.js", "type": "module" },
-  "action": { "default_title": "Open Pinhere" },
-  "side_panel": { "default_path": "sidepanel.html" },
+  "action": {
+    "default_title": "打开 Pinhere",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/pinhere-16.png",
+      "32": "icons/pinhere-32.png",
+      "48": "icons/pinhere-48.png",
+      "128": "icons/pinhere-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/pinhere-16.png",
+    "32": "icons/pinhere-32.png",
+    "48": "icons/pinhere-48.png",
+    "128": "icons/pinhere-128.png"
+  },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   }

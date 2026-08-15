@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title>Pinhere</title>
+  <rect width="128" height="128" rx="32" fill="#164DD8"/>
+  <path d="M64 23C45.22 23 30 38.22 30 57c0 26.13 34 51.2 34 51.2S98 83.13 98 57C98 38.22 82.78 23 64 23Z" fill="#fff"/>
+  <circle cx="64" cy="57" r="12" fill="#164DD8"/>
+  <path d="M44 88.5 34.5 98M84 88.5l9.5 9.5" stroke="#8CA9FF" stroke-width="5" stroke-linecap="round"/>
+</svg>
