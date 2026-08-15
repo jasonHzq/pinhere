@@ -5819,7 +5819,7 @@
                 "pattern": "^ph_pat_",
                 "description": "One-time PAT; must not be logged.",
                 "examples": [
-                  "ph_pat_redacted_not_a_credential"
+                  "ph_pat_<redacted>"
                 ]
               }
             }

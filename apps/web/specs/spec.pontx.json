@@ -5819,7 +5819,7 @@
                 "pattern": "^ph_pat_",
                 "description": "只显示一次的 PAT；不得记录。",
                 "examples": [
-                  "ph_pat_redacted_not_a_credential"
+                  "ph_pat_<redacted>"
                 ]
               }
             }
