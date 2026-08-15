@@ -5,5 +5,6 @@ export const IMPLEMENTED_OPERATION_IDS = [
   "claimIssue", "claimNextIssue", "releaseIssue", "completeIssue", "reopenIssue",
   "createAttachment", "downloadAttachment",
   "listWebhooks", "createWebhook", "updateWebhook", "deleteWebhook", "rotateWebhookSecret", "testWebhook", "listWebhookDeliveries", "retryWebhookDelivery",
-  "listApiTokens", "createApiToken", "revokeApiToken"
+  "listApiTokens", "createApiToken", "revokeApiToken",
+  "authorizeExtension", "exchangeOAuthToken"
 ] as const;
