@@ -11,9 +11,9 @@ export const meta: MetaFunction = ({ params }) => {
   return [
     { title: en ? "Pinhere — Point at the bug. Ship the fix." : "Pinhere — 圈出问题，交付修复" },
     { name: "description", content: en ? "Capture exact UI context and hand it to your coding agent." : "在网页上圈出缺陷，把准确上下文交给你的 AI 编程 Agent。" },
-    { tagName: "link", rel: "canonical", href: `https://pinhere.dev/${en ? "en" : "zh-CN"}` },
-    { tagName: "link", rel: "alternate", hrefLang: "zh-CN", href: "https://pinhere.dev/zh-CN" },
-    { tagName: "link", rel: "alternate", hrefLang: "en", href: "https://pinhere.dev/en" }
+    { tagName: "link", rel: "canonical", href: `https://pinhere-jasonhzqs-projects.vercel.app/${en ? "en" : "zh-CN"}` },
+    { tagName: "link", rel: "alternate", hrefLang: "zh-CN", href: "https://pinhere-jasonhzqs-projects.vercel.app/zh-CN" },
+    { tagName: "link", rel: "alternate", hrefLang: "en", href: "https://pinhere-jasonhzqs-projects.vercel.app/en" }
   ];
 };
 
@@ -75,7 +75,7 @@ export default function Landing() {
           <div className="absolute -inset-6 -z-10 rotate-2 rounded-[28px] border border-[#c8c6bd] bg-[#e5e3dc]" />
           <Card className="overflow-hidden border-[#b9b8b1] bg-[#171916] text-white shadow-[0_32px_80px_rgba(20,22,19,.22)]">
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-              <div className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#255ff0]" /><span className="font-mono text-[11px] text-white/60">app.pinhere.dev / checkout</span></div>
+              <div className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#255ff0]" /><span className="font-mono text-[11px] text-white/60">pinhere-jasonhzqs-projects.vercel.app / checkout</span></div>
               <ScanSearch size={17} className="text-white/40" />
             </div>
             <div className="relative aspect-[4/3] bg-[radial-gradient(circle_at_65%_20%,#294b80_0,#172031_35%,#111410_75%)] p-7">
