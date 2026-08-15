@@ -328,7 +328,7 @@ export function buildSpec(locale) {
         "Pinhere API for projects, origins, issues, screenshots, webhooks, PATs, and browser-extension OAuth. Every endpoint handles private data or persistent changes, so public Pontx Hub proxy execution is disabled."
       )
     },
-    servers: [{ id: "production", url: "https://pinhere.dev/api/v1", description: d("Pinhere 生产 API。", "Pinhere production API.") }],
+    servers: [{ id: "production", url: "https://pinhere-jasonhzqs-projects.vercel.app/api/v1", description: d("Pinhere 生产 API（Vercel）。", "Pinhere production API on Vercel.") }],
     tags: [
       { name: "projects", description: d("项目与 Origin 归属。", "Projects and origin assignments.") },
       { name: "issues", description: d("缺陷内容与 AI 处理状态机。", "Issue content and AI processing lifecycle.") },
@@ -343,8 +343,8 @@ export function buildSpec(locale) {
         websiteSession: { type: "apiKey", in: "header", name: "Cookie", description: d("Pinhere 网站 Session Cookie；仅浏览器同源请求使用，不应复制到 CLI、Hub 或日志。", "Pinhere website session cookie for same-origin browser requests only; never copy it to a CLI, Hub, or logs.") },
         pinherePat: { type: "http", scheme: "bearer", bearerFormat: "ph_pat_*", description: d("调用方环境持有的 Pinhere PAT。固定权限为 projects:read、issues:read 和 issues:write。", "Caller-held Pinhere PAT with fixed projects:read, issues:read, and issues:write scopes.") },
         extensionOAuth: { type: "oauth2", description: d("Chrome 扩展 OAuth 2.0 Authorization Code + PKCE。", "OAuth 2.0 Authorization Code + PKCE for the Chrome extension."), flows: { authorizationCode: {
-          authorizationUrl: "https://pinhere.dev/extension-authorize",
-          tokenUrl: "https://pinhere.dev/api/v1/oauth/token",
+          authorizationUrl: "https://pinhere-jasonhzqs-projects.vercel.app/extension-authorize",
+          tokenUrl: "https://pinhere-jasonhzqs-projects.vercel.app/api/v1/oauth/token",
           scopes: {
             "projects:read": d("读取项目并按页面 URL 解析项目。", "Read projects and resolve a project by page URL."),
             "issues:create": d("创建缺陷。", "Create issues."),
