@@ -1,0 +1,9 @@
+@import "tailwindcss";
+:root { font-family: "Manrope", ui-sans-serif, sans-serif; color: #171916; background: #f4f3ef; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input, textarea, select { font: inherit; }
+.font-mono { font-family: "SFMono-Regular", Consolas, monospace; }
+.focus-ring:focus-visible { outline: 3px solid #164dd847; outline-offset: 2px; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.rise { animation: rise .35s ease-out both; }

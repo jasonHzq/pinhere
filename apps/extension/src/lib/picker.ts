@@ -1,0 +1,82 @@
+import type { DomContext } from "@/types";
+
+export async function selectDomElement(tabId: number): Promise<DomContext> {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => new Promise<DomContext>((resolve, reject) => {
+      const existing = document.getElementById("__pinhere_picker__");
+      if (existing) { reject(new Error("Pinhere picker is already active")); return; }
+      const overlay = document.createElement("div");
+      overlay.id = "__pinhere_picker__";
+      Object.assign(overlay.style, { position: "fixed", pointerEvents: "none", zIndex: "2147483647", border: "2px solid #4c7cff", background: "rgba(22,77,216,.12)", boxShadow: "0 0 0 9999px rgba(8,12,20,.28)", borderRadius: "5px", transition: "all 45ms linear" });
+      const label = document.createElement("div");
+      Object.assign(label.style, { position: "fixed", pointerEvents: "none", zIndex: "2147483647", background: "#164dd8", color: "white", font: "500 11px ui-monospace, monospace", padding: "5px 8px", borderRadius: "5px", maxWidth: "70vw", overflow: "hidden", whiteSpace: "nowrap" });
+      const hint = document.createElement("div");
+      hint.textContent = "Pinhere · 点击选择元素 · Esc 取消";
+      Object.assign(hint.style, { position: "fixed", top: "14px", left: "50%", transform: "translateX(-50%)", zIndex: "2147483647", background: "#171916", color: "white", font: "600 12px sans-serif", padding: "9px 13px", borderRadius: "8px", boxShadow: "0 8px 30px rgba(0,0,0,.25)" });
+      document.documentElement.append(overlay, label, hint);
+      let target: Element | null = null;
+
+      const cleanup = () => { overlay.remove(); label.remove(); hint.remove(); document.removeEventListener("mousemove", move, true); document.removeEventListener("click", click, true); document.removeEventListener("keydown", key, true); };
+      const cssSelector = (element: Element) => {
+        if (element.id) return `#${CSS.escape(element.id)}`;
+        const parts: string[] = []; let node: Element | null = element;
+        while (node && node !== document.documentElement && parts.length < 8) {
+          let part = node.tagName.toLowerCase();
+          const stable = [...node.classList].filter((value) => !/^(active|hover|focus|selected|css-|jsx-|[a-z0-9]{8,})$/i.test(value)).slice(0, 2);
+          if (stable.length) part += stable.map((value) => `.${CSS.escape(value)}`).join("");
+          const parent: Element | null = node.parentElement;
+          if (parent) {
+            const siblings = [...parent.children].filter((child) => child.tagName === node!.tagName);
+            if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(node) + 1})`;
+          }
+          parts.unshift(part); node = parent;
+        }
+        return parts.join(" > ");
+      };
+      const xpath = (element: Element) => {
+        const parts: string[] = []; let node: Element | null = element;
+        while (node?.nodeType === Node.ELEMENT_NODE) {
+          const parent: Element | null = node.parentElement;
+          const tag = node.tagName.toLowerCase();
+          const siblings = parent ? [...parent.children].filter((child) => child.tagName === node!.tagName) : [];
+          parts.unshift(`${tag}${siblings.length > 1 ? `[${siblings.indexOf(node) + 1}]` : ""}`); node = parent;
+        }
+        return `/${parts.join("/")}`;
+      };
+      const sensitive = /(^|[-_:])(value|password|secret|token|key|code|session|auth|jwt)($|[-_:])/i;
+      const snapshot = (element: Element): DomContext => {
+        const rect = element.getBoundingClientRect();
+        const attributes: Record<string, string> = {};
+        for (const attribute of [...element.attributes]) {
+          if (attribute.name.startsWith("on") || attribute.name === "srcdoc" || sensitive.test(attribute.name)) continue;
+          attributes[attribute.name] = attribute.value.slice(0, 2_000);
+        }
+        const clone = element.cloneNode(true) as Element;
+        for (const item of [clone, ...clone.querySelectorAll("*")]) {
+          for (const attribute of [...item.attributes]) if (attribute.name.startsWith("on") || attribute.name === "srcdoc" || sensitive.test(attribute.name)) item.removeAttribute(attribute.name);
+          if (item instanceof HTMLInputElement || item instanceof HTMLTextAreaElement || item instanceof HTMLSelectElement) item.removeAttribute("value");
+        }
+        return {
+          cssSelector: cssSelector(element), xpath: xpath(element), tagName: element.tagName.toLowerCase(), attributes,
+          text: (element.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 5_000), outerHTML: clone.outerHTML.slice(0, 30_000),
+          viewport: { width: window.innerWidth, height: window.innerHeight, devicePixelRatio: window.devicePixelRatio },
+          boundingRect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+        };
+      };
+      const move = (event: MouseEvent) => {
+        const element = document.elementFromPoint(event.clientX, event.clientY);
+        if (!element || element === overlay || element === label || element === hint) return;
+        target = element; const rect = element.getBoundingClientRect();
+        Object.assign(overlay.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
+        label.textContent = cssSelector(element); label.style.left = `${Math.max(8, rect.left)}px`; label.style.top = `${Math.max(8, rect.top - 29)}px`;
+      };
+      const click = (event: MouseEvent) => { event.preventDefault(); event.stopImmediatePropagation(); if (!target) return; const value = snapshot(target); cleanup(); resolve(value); };
+      const key = (event: KeyboardEvent) => { if (event.key === "Escape") { cleanup(); reject(new Error("已取消圈选")); } };
+      document.addEventListener("mousemove", move, true); document.addEventListener("click", click, true); document.addEventListener("keydown", key, true);
+    })
+  });
+  const value = results[0]?.result;
+  if (!value) throw new Error("无法读取所选元素");
+  return value;
+}

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "issue_attachment_unique" ON "issue" USING btree ("attachmentId");

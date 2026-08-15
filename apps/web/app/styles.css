@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --paper: #f4f3ef;
+  --paper-deep: #e9e7e0;
+  --ink: #171916;
+  --muted: #696d67;
+  --line: #d6d5ce;
+  --blue: #164dd8;
+  --blue-bright: #255ff0;
+  --open: #d97706;
+  --progress: #164dd8;
+  --done: #1d7a52;
+  --danger: #bb2d3b;
+  font-family: "Manrope", sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+* { box-sizing: border-box; }
+html { background: var(--paper); }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input, textarea, select { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+a { color: inherit; text-decoration: none; }
+::selection { background: #164dd82c; }
+
+.noise {
+  position: relative;
+  isolation: isolate;
+}
+.noise::before {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  opacity: .22;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.09'/%3E%3C/svg%3E");
+}
+
+.font-mono { font-family: "DM Mono", monospace; }
+.focus-ring:focus-visible { outline: 3px solid #164dd847; outline-offset: 2px; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-rise { animation: rise .65s cubic-bezier(.2,.8,.2,1) both; }
+.delay-1 { animation-delay: .08s; }
+.delay-2 { animation-delay: .16s; }
+.delay-3 { animation-delay: .24s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; }
+}
