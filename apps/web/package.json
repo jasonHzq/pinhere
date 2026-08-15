@@ -12,6 +12,7 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "spec:build": "node scripts/build-spec.mjs",
     "spec:check": "tsx scripts/check-spec.ts"
   },
   "dependencies": {
