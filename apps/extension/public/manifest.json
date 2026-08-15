@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "minimum_chrome_version": "116",
   "permissions": ["activeTab", "scripting", "storage", "identity"],
-  "host_permissions": ["https://pinhere.dev/*"],
+  "host_permissions": ["https://pinhere.dev/*", "https://pinhere-delta.vercel.app/*"],
   "background": { "service_worker": "background.js", "type": "module" },
   "action": {
     "default_title": "打开 Pinhere",
