@@ -2,8 +2,8 @@
 
 :root {
   color-scheme: light;
-  --paper: #f8f8f6;
-  --paper-deep: #f0f0ed;
+  --paper: #ffffff;
+  --paper-deep: #f7f7f7;
   --ink: #121212;
   --muted: #70706d;
   --line: #deded9;
@@ -44,12 +44,10 @@ a { color: inherit; text-decoration: none; }
 .focus-ring:focus-visible { outline: 3px solid #11111147; outline-offset: 2px; }
 
 .workspace-grid {
-  background-color: var(--paper);
-  background-image: linear-gradient(#11111108 1px, transparent 1px), linear-gradient(90deg, #11111108 1px, transparent 1px);
-  background-size: 28px 28px;
+  background: #ffffff;
 }
 
-.workspace-surface { background: color-mix(in srgb, var(--paper) 92%, transparent); }
+.workspace-surface { background: transparent; }
 
 @keyframes rise {
   from { opacity: 0; transform: translateY(18px); }

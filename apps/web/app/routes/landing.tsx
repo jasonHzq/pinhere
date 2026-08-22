@@ -72,7 +72,7 @@ export default function Landing() {
         </div>
 
         <div className="animate-rise delay-2 relative mx-auto w-full max-w-[600px] lg:mx-0">
-          <div className="absolute -inset-6 -z-10 rotate-2 border border-[#c8c6bd] bg-[#e7e7e2]" />
+          <div className="absolute -inset-6 -z-10 rotate-2 border border-[#d4d4d0] bg-[#f5f5f5]" />
           <Card className="overflow-hidden rounded-none border-[#171717] bg-[#171717] text-white shadow-[8px_8px_0_#cfcfca]">
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div className="flex items-center gap-2"><span className="size-2 rounded-full bg-white" /><span className="font-mono text-[11px] text-white/60">app.pinhere.dev / checkout</span></div>
@@ -96,7 +96,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section id="workflow" className="border-y border-[#d6d5ce] bg-[#efefeb]/85">
+      <section id="workflow" className="border-y border-[#deded9] bg-[#fafafa]">
         <div className="mx-auto grid max-w-[1220px] md:grid-cols-4">
           {t.steps.map((step, index) => {
             const icons = [MousePointer2, ScanSearch, WandSparkles, Check];

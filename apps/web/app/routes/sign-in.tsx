@@ -38,7 +38,7 @@ export default function SignIn() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-[#f5f5f2] px-5 py-12 text-[#151515]">
+    <main className="grid min-h-screen place-items-center bg-white px-5 py-12 text-[#151515]">
       <div className="w-full max-w-[440px]">
         <div className="mb-6 flex items-center justify-between"><Logo locale={locale} /><Link className="focus-ring flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-[#696969] hover:bg-black/5" to={`/${locale}`}><MoveLeft size={14} />{en ? "Back" : "返回"}</Link></div>
         <Card className="rounded-[18px] border-[#151515] bg-white p-7 shadow-[7px_7px_0_#151515] md:p-9">
