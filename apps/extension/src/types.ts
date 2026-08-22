@@ -12,4 +12,4 @@ export type DomContext = {
 export type Project = { id: string; name: string };
 export type Tokens = { accessToken: string; refreshToken: string; expiresAt: number };
 export type Capture = { pageUrl: string; dom: DomContext; project: Project; screenshot: string; crop: Rect };
-export type PendingCapture = { pageUrl: string; dom: DomContext; screenshot: string };
+export type PendingCapture = { tabId?: number; pageUrl: string; dom: DomContext; screenshot: string };

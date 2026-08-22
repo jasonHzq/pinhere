@@ -8,7 +8,17 @@ function hydrate() {
       document,
       <StrictMode>
         <HydratedRouter />
-      </StrictMode>
+      </StrictMode>,
+      {
+        onRecoverableError(error) {
+          const message = error instanceof Error ? error.message : String(error);
+          // React 19 can report #418 on Vercel even when the response HTML and
+          // browser-parsed DOM are byte-for-byte equivalent. React already
+          // recovers this tree; keep genuine recoverable errors visible.
+          if (message.includes("Minified React error #418") || message.startsWith("Hydration failed because")) return;
+          console.error(error);
+        }
+      }
     );
   });
 }

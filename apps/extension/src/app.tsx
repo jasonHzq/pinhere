@@ -25,7 +25,7 @@ import {
   readAuthorizationStatus,
   TOKEN_KEY
 } from "@/lib/auth";
-import { clearPendingCapture, PENDING_CAPTURE_KEY, readPendingCapture } from "@/lib/capture";
+import { clearPendingCapture, pendingCaptureBelongsToTab, PENDING_CAPTURE_KEY, readPendingCapture } from "@/lib/capture";
 import { annotateScreenshot, cropAndCompress } from "@/lib/image";
 import type { Capture, Project, Rect } from "@/types";
 
@@ -68,6 +68,8 @@ export function App() {
   async function resumePendingCapture() {
     const pending = await readPendingCapture();
     if (!pending) return false;
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!pendingCaptureBelongsToTab(pending, activeTab)) return false;
     const projectResponse = await apiFetch(`/api/v1/projects/resolve?url=${encodeURIComponent(pending.pageUrl)}`);
     const projectBody = await projectResponse.json();
     if (!projectResponse.ok) throw new Error(projectBody.error?.message ?? "项目匹配失败");
@@ -255,7 +257,7 @@ export function App() {
           <section className="rise py-2">
             <div className="eyebrow">Extension access</div>
             <h1 className="mt-2 text-[24px] font-extrabold leading-[1.05] tracking-[-.045em]">连接，然后圈选</h1>
-            <p className="mt-3 text-[13px] leading-6 text-[#697386]">读取匹配项目、捕获页面上下文，并在侧边抽屉中整理缺陷。</p>
+            <p className="mt-3 text-[13px] leading-6 text-[#697386]">读取匹配项目、捕获页面上下文，并在大编辑窗口中整理缺陷。</p>
             <div className="mt-5 rounded-2xl border border-[#dfe5ec] bg-white p-4 text-xs leading-5 text-[#697386] shadow-[0_12px_32px_rgba(35,48,68,.06)]">
               授权在 Pinhere 完成，仅首次使用时需要。
             </div>
@@ -276,7 +278,7 @@ export function App() {
                 <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#edf2ff] text-[#315efb]"><MousePointer2 size={20} /></span>
                 <div>
                   <h1 className="text-[22px] font-extrabold leading-tight tracking-[-.045em]">选择页面上的问题</h1>
-                  <p className="mt-2 text-[12px] leading-5 text-[#697386]">选中元素后会自动打开编辑抽屉，截图、标题和描述都可以再调整。</p>
+                  <p className="mt-2 text-[12px] leading-5 text-[#697386]">选中元素后会自动打开大编辑窗口，截图、标题和描述都可以再调整。</p>
                 </div>
               </div>
               <div className="mt-5 grid grid-cols-3 gap-2 border-t border-[#e6eaf0] pt-4 text-center text-[10px] font-semibold text-[#7a8494]">

@@ -6,6 +6,11 @@ import type { DomContext, PendingCapture, Tokens } from "@/types";
 
 let loginInFlight: Promise<Tokens | null> | null = null;
 
+// `openPanelOnActionClick` is persisted by Chrome. Explicitly reset it so an
+// upgrade from an older build still opens the toolbar popover on icon click;
+// the side panel is reserved for the editor after a DOM selection.
+void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => undefined);
+
 function completeLogin() {
   loginInFlight ??= (async () => {
     await chrome.storage.local.set({ [AUTH_PENDING_KEY]: true });
@@ -63,7 +68,7 @@ async function storeCapture(sender: chrome.runtime.MessageSender, dom: DomContex
   const tab = sender.tab;
   if (!tab?.id || tab.windowId === undefined || !tab.url) throw new Error("无法读取当前页面");
   const screenshot = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
-  const capture: PendingCapture = { pageUrl: sanitizeUrl(tab.url), dom, screenshot };
+  const capture: PendingCapture = { tabId: tab.id, pageUrl: sanitizeUrl(tab.url), dom, screenshot };
   await chrome.storage.local.set({ [PENDING_CAPTURE_KEY]: capture });
   await chrome.action.setBadgeBackgroundColor({ tabId: tab.id, color: "#164DD8" });
   await chrome.action.setBadgeText({ tabId: tab.id, text: "1" });
@@ -88,8 +93,9 @@ chrome.runtime.onMessage.addListener((message: { type?: string; dom?: DomContext
     return true;
   }
   if (message.type === "pinhere/dom-selected" && message.dom) {
-    const editor = sender.tab?.id ? openCaptureEditor(sender.tab.id) : Promise.resolve(false);
-    void Promise.all([storeCapture(sender, message.dom), editor]).catch(() => undefined);
+    void storeCapture(sender, message.dom)
+      .then(() => sender.tab?.id ? openCaptureEditor(sender.tab.id) : false)
+      .catch(() => undefined);
   }
   if (message.type === "pinhere/dom-picker-cancelled" && sender.tab?.id) {
     void chrome.action.setTitle({ tabId: sender.tab.id, title: "打开 Pinhere" });
