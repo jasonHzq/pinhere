@@ -1,9 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "crons": [
-    {
-      "path": "/api/internal/cron/webhooks",
-      "schedule": "0 0 * * *"
-    }
-  ]
+  "regions": ["hkg1"]
 }
