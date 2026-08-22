@@ -1,11 +1,17 @@
 import { useState } from "react";
 import { CheckCircle2, ShieldCheck } from "lucide-react";
+import type { MetaFunction } from "react-router";
 import { redirect, useParams } from "react-router";
 import type { Route } from "./+types/extension-authorize";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { issueExtensionAuthorizationCode, parseExtensionRedirectUri } from "~/lib/extension-oauth.server";
 import { getPrincipal } from "~/lib/principal.server";
+
+export const meta: MetaFunction = () => [
+  { title: "Authorize extension | Pinhere" },
+  { name: "robots", content: "noindex, nofollow" }
+];
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const url = new URL(request.url);

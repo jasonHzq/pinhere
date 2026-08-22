@@ -1,11 +1,17 @@
 import { useState } from "react";
 import { Github, LoaderCircle, Mail, MoveLeft } from "lucide-react";
+import type { MetaFunction } from "react-router";
 import { Link, useParams, useSearchParams } from "react-router";
 import { Logo } from "~/components/logo";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { authClient } from "~/lib/auth-client";
+
+export const meta: MetaFunction = ({ params }) => [
+  { title: params.locale === "en" ? "Sign in | Pinhere" : "登录 | Pinhere" },
+  { name: "robots", content: "noindex, nofollow" }
+];
 
 export default function SignIn() {
   const { locale = "zh-CN" } = useParams();
