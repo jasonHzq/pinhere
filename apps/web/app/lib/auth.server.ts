@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { magicLink } from "better-auth/plugins";
+import { magicLink, oAuthProxy } from "better-auth/plugins";
 import { del } from "@vercel/blob";
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
@@ -18,7 +18,17 @@ function createPinhereAuth() {
   const secret = process.env.BETTER_AUTH_SECRET;
   if (!secret) throw new Error("BETTER_AUTH_SECRET is required");
 
-  const baseURL = process.env.PINHERE_BASE_URL ?? "http://localhost:5173";
+  const publicBaseURL = process.env.PINHERE_BASE_URL ?? "http://localhost:5173";
+  const legacyOAuthCallbackURL = process.env.PINHERE_OAUTH_PROXY_URL;
+  const publicOrigin = new URL(publicBaseURL);
+  const legacyOAuthOrigin = legacyOAuthCallbackURL ? new URL(legacyOAuthCallbackURL) : null;
+  const baseURL = legacyOAuthOrigin
+    ? {
+        allowedHosts: [publicOrigin.host, legacyOAuthOrigin.host],
+        protocol: publicOrigin.protocol.replace(":", "") as "http" | "https",
+        fallback: publicOrigin.origin
+      }
+    : publicBaseURL;
   const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
   return betterAuth({
@@ -44,6 +54,9 @@ function createPinhereAuth() {
           }
         }
       : {},
+    // GitHub OAuth Apps accept a single callback URL. During the domain migration,
+    // the legacy Vercel hostname receives GitHub's callback and Better Auth's
+    // encrypted proxy hands the signed-in session back to the public domain.
     plugins: [
       magicLink({
         expiresIn: 10 * 60,
@@ -60,7 +73,8 @@ function createPinhereAuth() {
             html: `<p>Open this one-time link to sign in to Pinhere:</p><p><a href=\"${url}\">Sign in</a></p><p>This link expires in 10 minutes.</p>`
           });
         }
-      })
+      }),
+      ...(legacyOAuthOrigin ? [oAuthProxy({ productionURL: legacyOAuthOrigin.origin })] : [])
     ],
     databaseHooks: {
       user: {
