@@ -68,8 +68,10 @@ export function App() {
   async function resumePendingCapture() {
     const pending = await readPendingCapture();
     if (!pending) return false;
-    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!pendingCaptureBelongsToTab(pending, activeTab)) return false;
+    const sourceTab = pending.tabId === undefined
+      ? (await chrome.tabs.query({ active: true, currentWindow: true }))[0]
+      : await chrome.tabs.get(pending.tabId).catch(() => undefined);
+    if (!pendingCaptureBelongsToTab(pending, sourceTab)) return false;
     const projectResponse = await apiFetch(`/api/v1/projects/resolve?url=${encodeURIComponent(pending.pageUrl)}`);
     const projectBody = await projectResponse.json();
     if (!projectResponse.ok) throw new Error(projectBody.error?.message ?? "项目匹配失败");

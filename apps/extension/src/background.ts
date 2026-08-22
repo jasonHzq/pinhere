@@ -1,4 +1,5 @@
 import { PENDING_CAPTURE_KEY } from "@/lib/capture";
+import { captureAndOpenEditor } from "@/lib/editor";
 import { AUTH_ERROR_KEY, AUTH_PENDING_KEY, OAUTH_STATE_KEY, beginOAuthLogin, completeSafariOAuthLogin, isSafariOAuthCallback, readOAuthState } from "@/lib/auth";
 import { installDomPicker } from "@/lib/picker";
 import { sanitizeUrl } from "@/lib/url";
@@ -80,6 +81,16 @@ function openCaptureEditor(tabId: number) {
   return chrome.sidePanel.open({ tabId }).then(() => true, () => false);
 }
 
+async function openCaptureEditorFallback() {
+  await chrome.windows.create({
+    url: chrome.runtime.getURL("popup.html"),
+    type: "popup",
+    width: 560,
+    height: 760,
+    focused: true
+  });
+}
+
 chrome.runtime.onMessage.addListener((message: { type?: string; dom?: DomContext }, sender, sendResponse) => {
   if (message.type === "pinhere/complete-oauth-login") {
     void completeLogin().then(
@@ -93,9 +104,14 @@ chrome.runtime.onMessage.addListener((message: { type?: string; dom?: DomContext
     return true;
   }
   if (message.type === "pinhere/dom-selected" && message.dom) {
-    void storeCapture(sender, message.dom)
-      .then(() => sender.tab?.id ? openCaptureEditor(sender.tab.id) : false)
-      .catch(() => undefined);
+    const tabId = sender.tab?.id;
+    const dom = message.dom;
+    if (!tabId) return undefined;
+    void captureAndOpenEditor(
+      () => openCaptureEditor(tabId),
+      () => storeCapture(sender, dom),
+      openCaptureEditorFallback
+    ).catch(() => undefined);
   }
   if (message.type === "pinhere/dom-picker-cancelled" && sender.tab?.id) {
     void chrome.action.setTitle({ tabId: sender.tab.id, title: "打开 Pinhere" });
