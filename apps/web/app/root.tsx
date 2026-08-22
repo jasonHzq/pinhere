@@ -1,33 +1,6 @@
 import type { LinksFunction, MetaFunction } from "react-router";
-import { Links, Meta, Outlet, Scripts, ScrollRestoration, useLocation, useParams } from "react-router";
-import { useEffect } from "react";
+import { Links, Meta, Outlet, Scripts, ScrollRestoration, useParams } from "react-router";
 import stylesheet from "./styles.css?url";
-
-const googleAnalyticsId = import.meta.env.VITE_GOOGLE_ANALYTICS_ID?.trim();
-const validGoogleAnalyticsId = /^G-[A-Z0-9]+$/.test(googleAnalyticsId ?? "") ? googleAnalyticsId : null;
-
-function isPublicAnalyticsRoute(pathname: string) {
-  return /^\/(?:zh-CN|en)(?:\/sign-in)?\/?$/.test(pathname);
-}
-
-function GoogleAnalytics({ enabled }: { enabled: boolean }) {
-  useEffect(() => {
-    if (!enabled || !validGoogleAnalyticsId) return;
-    const analyticsWindow = window as Window & { dataLayer?: unknown[][] };
-    const dataLayer = analyticsWindow.dataLayer ??= [];
-    const gtag = (...values: unknown[]) => dataLayer.push(values);
-    gtag("js", new Date());
-    gtag("config", validGoogleAnalyticsId);
-
-    if (document.getElementById("pinhere-google-tag")) return;
-    const script = document.createElement("script");
-    script.id = "pinhere-google-tag";
-    script.async = true;
-    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(validGoogleAnalyticsId)}`;
-    document.head.append(script);
-  }, [enabled]);
-  return null;
-}
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: stylesheet },
@@ -53,9 +26,7 @@ export const meta: MetaFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { locale } = useParams();
-  const { pathname } = useLocation();
   const language = locale === "en" ? "en" : "zh-CN";
-  const analyticsEnabled = import.meta.env.PROD && Boolean(validGoogleAnalyticsId) && isPublicAnalyticsRoute(pathname);
 
   return (
     <html lang={language} suppressHydrationWarning>
@@ -67,7 +38,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
-        <GoogleAnalytics enabled={analyticsEnabled} />
         <ScrollRestoration />
         <Scripts />
       </body>
