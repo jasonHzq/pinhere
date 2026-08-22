@@ -24,7 +24,7 @@ async function saveTokens(value: { accessToken: string; refreshToken: string; ex
   return tokens;
 }
 
-export async function login() {
+export async function completeOAuthLogin() {
   const verifier = base64Url(crypto.getRandomValues(new Uint8Array(48)));
   const redirectUri = chrome.identity.getRedirectURL("oauth2");
   const url = new URL("/zh-CN/extension/authorize", BASE_URL);
@@ -39,6 +39,12 @@ export async function login() {
   const body = await response.json();
   if (!response.ok) throw new Error(body.error?.message ?? "授权失败");
   return saveTokens(body.data);
+}
+
+export async function login() {
+  const result = await chrome.runtime.sendMessage({ type: "pinhere/complete-oauth-login" }) as { ok?: boolean; tokens?: Tokens; message?: string } | undefined;
+  if (!result?.ok || !result.tokens) throw new Error(result?.message ?? "授权流程未完成，请重试");
+  return result.tokens;
 }
 
 async function refresh(tokens: Tokens) {

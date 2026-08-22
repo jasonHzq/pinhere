@@ -19,6 +19,7 @@ import {
   webhooks
 } from "~/db/schema";
 import { createId, createSecret, digestSecret, resourceEtag } from "~/lib/ids.server";
+import { issueExtensionAuthorizationCode, parseExtensionRedirectUri } from "~/lib/extension-oauth.server";
 import { normalizeOrigin, sanitizePageUrl } from "~/lib/origin";
 import { getPrincipal, hasScope, type Principal } from "~/lib/principal.server";
 import { assertPublicWebhookUrl, deliverWebhook, newWebhookSecret, processWebhookWork } from "~/lib/webhook.server";
@@ -559,12 +560,9 @@ app.post("/api/v1/oauth/extension/authorize", async (c) => {
   const p = await principal(c.req.raw, "*");
   if (p.actorType !== "user") throw new ApiError("user_session_required", "A website session is required", 403);
   const body = await jsonBody(c.req.raw, z.object({ redirectUri: z.string().url(), codeChallenge: z.string().min(43).max(128) }));
-  const redirect = new URL(body.redirectUri);
-  if (redirect.protocol !== "https:" || !redirect.hostname.endsWith(".chromiumapp.org")) throw new ApiError("invalid_redirect_uri", "Only Chrome extension callback URLs are allowed", 422);
-  const code = createSecret("ph_code", 24);
-  await getDatabase().insert(extensionCodes).values({ codeDigest: digestSecret(code), userId: p.userId, redirectUri: body.redirectUri, codeChallenge: body.codeChallenge, expiresAt: new Date(Date.now() + 5 * 60_000) });
-  redirect.searchParams.set("code", code);
-  return data({ redirectUrl: redirect.toString() });
+  const redirectUri = parseExtensionRedirectUri(body.redirectUri);
+  if (!redirectUri) throw new ApiError("invalid_redirect_uri", "Only Chrome extension callback URLs are allowed", 422);
+  return data({ redirectUrl: await issueExtensionAuthorizationCode(p.userId, redirectUri, body.codeChallenge) });
 });
 
 app.post("/api/v1/oauth/token", async (c) => {

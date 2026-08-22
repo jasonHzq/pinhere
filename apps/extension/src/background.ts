@@ -1,7 +1,15 @@
 import { PENDING_CAPTURE_KEY } from "@/lib/capture";
+import { completeOAuthLogin } from "@/lib/auth";
 import { installDomPicker } from "@/lib/picker";
 import { sanitizeUrl } from "@/lib/url";
-import type { DomContext, PendingCapture } from "@/types";
+import type { DomContext, PendingCapture, Tokens } from "@/types";
+
+let loginInFlight: Promise<Tokens> | null = null;
+
+function completeLogin() {
+  loginInFlight ??= completeOAuthLogin().finally(() => { loginInFlight = null; });
+  return loginInFlight;
+}
 
 async function startDomPicker() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -24,6 +32,13 @@ async function storeCapture(sender: chrome.runtime.MessageSender, dom: DomContex
 }
 
 chrome.runtime.onMessage.addListener((message: { type?: string; dom?: DomContext }, sender, sendResponse) => {
+  if (message.type === "pinhere/complete-oauth-login") {
+    void completeLogin().then(
+      (tokens) => sendResponse({ ok: true, tokens }),
+      (error: unknown) => sendResponse({ ok: false, message: error instanceof Error ? error.message : "授权流程未完成" })
+    );
+    return true;
+  }
   if (message.type === "pinhere/start-dom-picker") {
     void startDomPicker().then(() => sendResponse({ ok: true })).catch((error: unknown) => sendResponse({ ok: false, message: error instanceof Error ? error.message : "无法开启圈选" }));
     return true;
