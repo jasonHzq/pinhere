@@ -97,7 +97,7 @@ const copy = {
     secondary: "登录工作台",
     viewWorkflow: "查看工作流",
     installNav: "安装扩展",
-    installEyebrow: "Safari 15.4+ · Chrome 116+ · v0.1.2",
+    installEyebrow: "Safari 15.4+ · Chrome 116+ · v0.1.3",
     installTitle: "在手机或电脑浏览器里，直接圈选 Bug",
     installIntro: "Safari 与 Chrome 使用同一套安全工作流。Pinhere 仅在你主动点按扩展时读取当前页面，并把选中的 DOM 与截图交给你的工作台。",
     safariBadge: "iPhone / iPad 优先",
@@ -153,7 +153,7 @@ const copy = {
     secondary: "Sign in to workspace",
     viewWorkflow: "View workflow",
     installNav: "Install extension",
-    installEyebrow: "Safari 15.4+ · Chrome 116+ · v0.1.2",
+    installEyebrow: "Safari 15.4+ · Chrome 116+ · v0.1.3",
     installTitle: "Point at bugs from your phone or desktop browser",
     installIntro: "Safari and Chrome share the same secure workflow. Pinhere reads the current page only when you activate the extension, then sends the selected DOM and screenshot to your workspace.",
     safariBadge: "iPhone / iPad first",
@@ -206,7 +206,7 @@ export default function Landing() {
   const { locale = "zh-CN" } = useParams();
   const en = locale === "en";
   const t = en ? copy.en : copy.zh;
-  const chromeDownloadUrl = "/downloads/pinhere-extension-v0.1.2.zip";
+  const chromeDownloadUrl = "/downloads/pinhere-extension-v0.1.3.zip";
   return (
     <main className="workspace-grid noise min-h-screen overflow-hidden">
       <header className="sticky top-0 z-40 border-b border-[#d8dee4]/70 bg-[#f4f6f8]/85 backdrop-blur-xl">

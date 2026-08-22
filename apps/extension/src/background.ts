@@ -106,12 +106,21 @@ chrome.runtime.onMessage.addListener((message: { type?: string; dom?: DomContext
   if (message.type === "pinhere/dom-selected" && message.dom) {
     const tabId = sender.tab?.id;
     const dom = message.dom;
-    if (!tabId) return undefined;
+    if (!tabId) {
+      sendResponse({ ok: false, message: "无法读取圈选页面" });
+      return false;
+    }
     void captureAndOpenEditor(
       () => openCaptureEditor(tabId),
       () => storeCapture(sender, dom),
       openCaptureEditorFallback
-    ).catch(() => undefined);
+    ).then(
+      () => sendResponse({ ok: true }),
+      (error: unknown) => sendResponse({ ok: false, message: error instanceof Error ? error.message : "无法打开问题编辑器" })
+    );
+    // Keep the service worker and response channel alive until screenshot
+    // storage and the guaranteed editor fallback have both finished.
+    return true;
   }
   if (message.type === "pinhere/dom-picker-cancelled" && sender.tab?.id) {
     void chrome.action.setTitle({ tabId: sender.tab.id, title: "打开 Pinhere" });

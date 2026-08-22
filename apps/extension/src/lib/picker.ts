@@ -125,7 +125,9 @@ export function installDomPicker() {
     if (!target) return;
     const dom = snapshot(target);
     cleanup();
-    void chrome.runtime.sendMessage({ type: "pinhere/dom-selected", dom });
+    // Waiting for the background response keeps the service-worker task alive
+    // until it has stored the screenshot and opened the editor.
+    void chrome.runtime.sendMessage({ type: "pinhere/dom-selected", dom }).catch(() => undefined);
   };
   const click = (event: MouseEvent) => {
     event.preventDefault();
