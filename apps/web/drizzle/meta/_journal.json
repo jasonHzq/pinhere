@@ -15,6 +15,13 @@
       "when": 1786778326334,
       "tag": "0001_known_wildside",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787412466591,
+      "tag": "0002_overconfident_scarlet_spider",
+      "breakpoints": true
     }
   ]
 }

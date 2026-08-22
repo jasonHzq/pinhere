@@ -83,6 +83,9 @@ export const authRateLimits = pgTable("auth_rate_limit", {
 export const issueStatus = pgEnum("issue_status", ["open", "in_progress", "done"]);
 export const issueSource = pgEnum("issue_source", ["extension", "web", "api"]);
 export const deliveryStatus = pgEnum("delivery_status", ["pending", "delivered", "failed"]);
+export const agentHarness = pgEnum("agent_harness", ["codex"]);
+export const agentRunStatus = pgEnum("agent_run_status", ["queued", "running", "waiting", "succeeded", "failed", "cancelled"]);
+export const agentPairingStatus = pgEnum("agent_pairing_status", ["pending", "approved", "used"]);
 
 export const projects = pgTable(
   "project",
@@ -138,6 +141,7 @@ export const issues = pgTable(
     attachmentId: text(),
     claimedByTokenId: text(),
     claimedAt: timestamp({ withTimezone: true }),
+    claimExpiresAt: timestamp({ withTimezone: true }),
     completedAt: timestamp({ withTimezone: true }),
     completionSummary: text(),
     createdAt: now(),
@@ -197,6 +201,66 @@ export const apiTokens = pgTable(
     revokedAt: timestamp({ withTimezone: true })
   },
   (table) => [index("api_token_user_idx").on(table.userId, table.createdAt)]
+);
+
+export const agentPairings = pgTable(
+  "agent_pairing",
+  {
+    id: text().primaryKey(),
+    deviceCodeDigest: text().notNull().unique(),
+    userCodeDigest: text().notNull().unique(),
+    userCodeDisplay: text().notNull(),
+    userId: text().references(() => authUsers.id, { onDelete: "cascade" }),
+    name: text().notNull(),
+    platform: text().notNull(),
+    harness: agentHarness().notNull().default("codex"),
+    status: agentPairingStatus().notNull().default("pending"),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    approvedAt: timestamp({ withTimezone: true }),
+    usedAt: timestamp({ withTimezone: true }),
+    createdAt: now()
+  },
+  (table) => [index("agent_pairing_expiry_idx").on(table.status, table.expiresAt)]
+);
+
+export const agentInstances = pgTable(
+  "agent_instance",
+  {
+    id: text().primaryKey(),
+    userId: text().notNull().references(() => authUsers.id, { onDelete: "cascade" }),
+    tokenId: text().notNull().references(() => apiTokens.id, { onDelete: "cascade" }).unique(),
+    name: text().notNull(),
+    platform: text().notNull(),
+    harness: agentHarness().notNull().default("codex"),
+    version: text(),
+    lastSeenAt: timestamp({ withTimezone: true }),
+    createdAt: now(),
+    updatedAt: now()
+  },
+  (table) => [index("agent_instance_user_idx").on(table.userId, table.lastSeenAt)]
+);
+
+export const agentRuns = pgTable(
+  "agent_run",
+  {
+    id: text().primaryKey(),
+    userId: text().notNull().references(() => authUsers.id, { onDelete: "cascade" }),
+    issueId: text().notNull().references(() => issues.id, { onDelete: "cascade" }),
+    agentInstanceId: text().notNull().references(() => agentInstances.id, { onDelete: "cascade" }),
+    harness: agentHarness().notNull().default("codex"),
+    externalThreadId: text(),
+    status: agentRunStatus().notNull().default("queued"),
+    summary: text(),
+    error: text(),
+    startedAt: timestamp({ withTimezone: true }),
+    finishedAt: timestamp({ withTimezone: true }),
+    createdAt: now(),
+    updatedAt: now()
+  },
+  (table) => [
+    index("agent_run_issue_idx").on(table.issueId, table.createdAt),
+    index("agent_run_instance_status_idx").on(table.agentInstanceId, table.status, table.createdAt)
+  ]
 );
 
 export const extensionCodes = pgTable(

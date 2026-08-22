@@ -7,6 +7,9 @@ import { z } from "zod";
 import { getDatabase } from "~/db/client.server";
 import {
   apiTokens,
+  agentInstances,
+  agentPairings,
+  agentRuns,
   attachments,
   issueEvents,
   issues,
@@ -17,6 +20,8 @@ import {
   webhooks
 } from "~/db/schema";
 import { createId, createSecret, digestSecret, resourceEtag } from "~/lib/ids.server";
+import { claimExpiry } from "~/lib/lease.server";
+import { repairPrompt } from "~/lib/repair-prompt";
 import { issueExtensionAuthorizationCode, parseExtensionRedirectUri } from "~/lib/extension-oauth.server";
 import { normalizeOrigin, sanitizePageUrl } from "~/lib/origin";
 import { getPrincipal, hasScope, type Principal } from "~/lib/principal.server";
@@ -37,6 +42,12 @@ const issueInput = z.object({
   projectId: z.string(), title: z.string().trim().min(1).max(200), description: z.string().trim().min(1).max(20_000),
   pageUrl: z.string().url(), dom: domSchema, attachmentId: z.string().optional(), source: z.enum(["extension", "web", "api"]).default("extension")
 });
+const pairingInput = z.object({
+  name: z.string().trim().min(1).max(100),
+  platform: z.string().trim().min(1).max(100),
+  harness: z.literal("codex").default("codex")
+});
+const runStatusSchema = z.enum(["queued", "running", "waiting", "succeeded", "failed", "cancelled"]);
 
 function data(value: unknown, status = 200, headers?: HeadersInit) {
   return Response.json({ data: value }, { status, headers });
@@ -49,6 +60,15 @@ function cursorDate(value: string | undefined) {
 
 function nextCursor(date: Date | undefined, hasMore: boolean) {
   return hasMore && date ? Buffer.from(date.toISOString()).toString("base64url") : null;
+}
+
+function normalizedUserCode(value: string) {
+  return value.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
+}
+
+function displayUserCode(value: string) {
+  const normalized = normalizedUserCode(value);
+  return `${normalized.slice(0, 4)}-${normalized.slice(4, 8)}`;
 }
 
 function isUniqueViolation(error: unknown) {
@@ -255,7 +275,7 @@ app.post("/api/v1/issues", async (c) => {
   const db = getDatabase();
   const webhookPayload = {
     eventId: webhookEventId, projectId: body.projectId, issueId: id, createdAt: new Date().toISOString(),
-    prompt: `请使用 Pinhere Skill 处理缺陷 ${id}。先调用 claimIssue，再调用 getIssue 获取完整上下文。`
+    prompt: repairPrompt(id)
   };
   if (body.attachmentId) {
     const result = await db.execute(sql`
@@ -292,7 +312,7 @@ app.post("/api/v1/issues", async (c) => {
     ]);
   }
   const issue = await ownedIssue(p.userId, id);
-  const response = { data: issue };
+  const response = { data: { ...issue, handoffPrompt: repairPrompt(issue.id) } };
   await saveIdempotentResponse(p.userId, "createIssue", key, body, 201, response);
   background(processWebhookWork());
   return Response.json(response, { status: 201, headers: { ETag: resourceEtag(issue.version) } });
@@ -301,7 +321,7 @@ app.post("/api/v1/issues", async (c) => {
 app.get("/api/v1/issues/:issueId", async (c) => {
   const p = await principal(c.req.raw, "issues:read");
   const issue = await ownedIssue(p.userId, c.req.param("issueId"));
-  return data({ ...issue, screenshotUrl: issue.attachmentId ? `/api/v1/attachments/${issue.attachmentId}` : null }, 200, { ETag: resourceEtag(issue.version) });
+  return data({ ...issue, screenshotUrl: issue.attachmentId ? `/api/v1/attachments/${issue.attachmentId}` : null, handoffPrompt: repairPrompt(issue.id) }, 200, { ETag: resourceEtag(issue.version) });
 });
 
 app.patch("/api/v1/issues/:issueId", async (c) => {
@@ -341,8 +361,12 @@ app.get("/api/v1/issues/:issueId/events", async (c) => {
 
 async function claimById(issueId: string, p: Principal) {
   const [claimed] = await getDatabase().update(issues).set({
-    status: "in_progress", claimedByTokenId: p.actorId, claimedAt: new Date(), updatedAt: new Date(), version: sql`${issues.version} + 1`
-  }).where(and(eq(issues.id, issueId), eq(issues.userId, p.userId), eq(issues.status, "open"))).returning();
+    status: "in_progress", claimedByTokenId: p.actorId, claimedAt: new Date(), claimExpiresAt: claimExpiry(), updatedAt: new Date(), version: sql`${issues.version} + 1`
+  }).where(and(eq(issues.id, issueId), eq(issues.userId, p.userId), or(
+    eq(issues.status, "open"),
+    and(eq(issues.status, "in_progress"), eq(issues.claimedByTokenId, p.actorId)),
+    and(eq(issues.status, "in_progress"), lt(issues.claimExpiresAt, new Date()))
+  ))).returning();
   if (!claimed) {
     await ownedIssue(p.userId, issueId);
     throw new ApiError("issue_already_claimed", "Issue is already being processed", 409);
@@ -362,6 +386,19 @@ app.post("/api/v1/issues/:issueId/claim", async (c) => {
   return Response.json(response);
 });
 
+app.post("/api/v1/issues/:issueId/heartbeat", async (c) => {
+  const p = await principal(c.req.raw, "issues:write");
+  const issue = await ownedIssue(p.userId, c.req.param("issueId"));
+  if (issue.status !== "in_progress") throw new ApiError("invalid_issue_state", "Issue is not being processed", 409);
+  if (p.actorType !== "user" && issue.claimedByTokenId !== p.actorId) throw new ApiError("claim_owner_mismatch", "Only the claiming token can renew this issue", 403);
+  const [updated] = await getDatabase().update(issues).set({
+    claimExpiresAt: claimExpiry(), updatedAt: new Date(), version: issue.version + 1
+  }).where(and(eq(issues.id, issue.id), eq(issues.status, "in_progress"), eq(issues.version, issue.version))).returning();
+  if (!updated) throw new ApiError("issue_state_conflict", "The issue state changed; reload it and try again", 409);
+  await addIssueEvent(issue.id, p, "issue.claim_renewed", { claimExpiresAt: updated.claimExpiresAt?.toISOString() });
+  return data(updated);
+});
+
 app.post("/api/v1/issues/claim-next", async (c) => {
   const p = await principal(c.req.raw, "issues:write");
   const body = await jsonBody(c.req.raw, z.object({ projectId: z.string() }));
@@ -372,13 +409,15 @@ app.post("/api/v1/issues/claim-next", async (c) => {
   const result = await getDatabase().execute(sql`
     with candidate as (
       select id from issue
-      where "userId" = ${p.userId} and "projectId" = ${body.projectId} and status = 'open'
+      where "userId" = ${p.userId} and "projectId" = ${body.projectId}
+        and (status = 'open' or (status = 'in_progress' and "claimExpiresAt" < now()))
       order by "createdAt" asc
       for update skip locked
       limit 1
     )
     update issue set
-      status = 'in_progress', "claimedByTokenId" = ${p.actorId}, "claimedAt" = now(), "updatedAt" = now(), version = version + 1
+      status = 'in_progress', "claimedByTokenId" = ${p.actorId}, "claimedAt" = now(),
+      "claimExpiresAt" = ${claimExpiry()}, "updatedAt" = now(), version = version + 1
     from candidate where issue.id = candidate.id
     returning issue.*
   `);
@@ -402,6 +441,7 @@ async function stateChange(p: Principal, issueId: string, target: "open" | "done
     status: target,
     claimedByTokenId: target === "open" ? null : issue.claimedByTokenId,
     claimedAt: target === "open" ? null : issue.claimedAt,
+    claimExpiresAt: null,
     completedAt: target === "done" ? new Date() : null,
     completionSummary: target === "done" ? summary : null,
     updatedAt: new Date(), version: issue.version + 1
@@ -443,7 +483,7 @@ app.post("/api/v1/issues/:issueId/reopen", async (c) => {
   const replay = await findIdempotentResponse(p.userId, "reopenIssue", key, requestValue);
   if (replay) return replay;
   if (issue.status !== "done") throw new ApiError("invalid_issue_state", "Only completed issues can be reopened", 409);
-  const [updated] = await getDatabase().update(issues).set({ status: "open", claimedByTokenId: null, claimedAt: null, completedAt: null, completionSummary: null, updatedAt: new Date(), version: issue.version + 1 }).where(and(eq(issues.id, issue.id), eq(issues.status, "done"), eq(issues.version, issue.version))).returning();
+  const [updated] = await getDatabase().update(issues).set({ status: "open", claimedByTokenId: null, claimedAt: null, claimExpiresAt: null, completedAt: null, completionSummary: null, updatedAt: new Date(), version: issue.version + 1 }).where(and(eq(issues.id, issue.id), eq(issues.status, "done"), eq(issues.version, issue.version))).returning();
   if (!updated) throw new ApiError("issue_state_conflict", "The issue state changed; reload it and try again", 409);
   await addIssueEvent(issue.id, p, "issue.reopened");
   const response = { data: updated };
@@ -481,6 +521,116 @@ app.get("/api/v1/attachments/:attachmentId", async (c) => {
   const response = await fetch(attachment.blobUrl, { headers: { authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` } });
   if (!response.ok) throw new ApiError("attachment_unavailable", "Attachment storage is unavailable", 503);
   return new Response(response.body, { headers: { "content-type": attachment.contentType, "cache-control": "private, max-age=300" } });
+});
+
+app.post("/api/v1/agent-pairings", async (c) => {
+  const body = await jsonBody(c.req.raw, pairingInput);
+  const deviceCode = createSecret("ph_dev");
+  const rawUserCode = createSecret("", 8).replaceAll(/[^A-Za-z0-9]/g, "").slice(0, 8).toUpperCase().padEnd(8, "X");
+  const userCode = displayUserCode(rawUserCode);
+  const id = createId("pair");
+  const expiresAt = new Date(Date.now() + 10 * 60_000);
+  await getDatabase().insert(agentPairings).values({
+    id,
+    deviceCodeDigest: digestSecret(deviceCode),
+    userCodeDigest: digestSecret(normalizedUserCode(userCode)),
+    userCodeDisplay: userCode,
+    name: body.name,
+    platform: body.platform,
+    harness: body.harness,
+    expiresAt
+  });
+  const verificationUri = `${new URL(c.req.url).origin}/zh-CN/pair?code=${encodeURIComponent(userCode)}`;
+  return data({ pairingId: id, deviceCode, userCode, verificationUri, expiresIn: 600, interval: 3 }, 201);
+});
+
+app.post("/api/v1/agent-pairings/:userCode/approve", async (c) => {
+  const p = await principal(c.req.raw, "*");
+  if (p.actorType !== "user") throw new ApiError("user_session_required", "A website session is required", 403);
+  const [approved] = await getDatabase().update(agentPairings).set({
+    userId: p.userId, status: "approved", approvedAt: new Date()
+  }).where(and(
+    eq(agentPairings.userCodeDigest, digestSecret(normalizedUserCode(c.req.param("userCode")))),
+    eq(agentPairings.status, "pending"),
+    gt(agentPairings.expiresAt, new Date())
+  )).returning({ id: agentPairings.id, name: agentPairings.name });
+  if (!approved) throw new ApiError("pairing_invalid", "Pairing code is invalid or expired", 404);
+  return data(approved);
+});
+
+app.post("/api/v1/agent-pairings/token", async (c) => {
+  const body = await jsonBody(c.req.raw, z.object({ deviceCode: z.string().min(1) }));
+  const [pairing] = await getDatabase().select().from(agentPairings).where(and(
+    eq(agentPairings.deviceCodeDigest, digestSecret(body.deviceCode)),
+    gt(agentPairings.expiresAt, new Date()),
+    isNull(agentPairings.usedAt)
+  )).limit(1);
+  if (!pairing) throw new ApiError("pairing_invalid", "Pairing code is invalid or expired", 401);
+  if (pairing.status === "pending" || !pairing.userId) return data({ status: "pending" }, 202);
+
+  const [consumed] = await getDatabase().update(agentPairings).set({ status: "used", usedAt: new Date() }).where(and(
+    eq(agentPairings.id, pairing.id), eq(agentPairings.status, "approved"), isNull(agentPairings.usedAt)
+  )).returning();
+  if (!consumed?.userId) throw new ApiError("pairing_already_used", "Pairing code has already been used", 409);
+
+  const token = createSecret("ph_pat");
+  const tokenId = createId("pat");
+  const agentId = createId("agt");
+  const scopes = ["projects:read", "issues:read", "issues:write", "agents:write"];
+  await getDatabase().batch([
+    getDatabase().insert(apiTokens).values({ id: tokenId, userId: consumed.userId, name: `Pinhere agent: ${consumed.name}`, prefix: token.slice(0, 16), digest: digestSecret(token), scopes }),
+    getDatabase().insert(agentInstances).values({ id: agentId, userId: consumed.userId, tokenId, name: consumed.name, platform: consumed.platform, harness: consumed.harness, lastSeenAt: new Date() })
+  ]);
+  return data({ status: "paired", token, tokenType: "Bearer", scopes, agent: { id: agentId, name: consumed.name, platform: consumed.platform, harness: consumed.harness } });
+});
+
+app.get("/api/v1/agents", async (c) => {
+  const p = await principal(c.req.raw, "agents:write");
+  const rows = await getDatabase().select().from(agentInstances).where(eq(agentInstances.userId, p.userId)).orderBy(desc(agentInstances.createdAt));
+  return data(rows);
+});
+
+app.post("/api/v1/agents/heartbeat", async (c) => {
+  const p = await principal(c.req.raw, "agents:write");
+  if (p.actorType !== "api_token") throw new ApiError("agent_token_required", "An agent token is required", 403);
+  const body = await jsonBody(c.req.raw, z.object({ version: z.string().max(100).optional() }));
+  const [updated] = await getDatabase().update(agentInstances).set({ version: body.version, lastSeenAt: new Date(), updatedAt: new Date() }).where(and(
+    eq(agentInstances.userId, p.userId), eq(agentInstances.tokenId, p.actorId)
+  )).returning();
+  if (!updated) throw new ApiError("agent_not_found", "Paired agent was not found", 404);
+  return data(updated);
+});
+
+app.post("/api/v1/agent-runs", async (c) => {
+  const p = await principal(c.req.raw, "agents:write");
+  if (p.actorType !== "api_token") throw new ApiError("agent_token_required", "An agent token is required", 403);
+  const body = await jsonBody(c.req.raw, z.object({ issueId: z.string(), harness: z.literal("codex").default("codex") }));
+  const issue = await ownedIssue(p.userId, body.issueId);
+  if (issue.claimedByTokenId !== p.actorId || issue.status !== "in_progress") throw new ApiError("claim_owner_mismatch", "Agent must claim the issue before starting a run", 403);
+  const [agent] = await getDatabase().select().from(agentInstances).where(and(eq(agentInstances.userId, p.userId), eq(agentInstances.tokenId, p.actorId))).limit(1);
+  if (!agent) throw new ApiError("agent_not_found", "Paired agent was not found", 404);
+  const [run] = await getDatabase().insert(agentRuns).values({
+    id: createId("run"), userId: p.userId, issueId: issue.id, agentInstanceId: agent.id, harness: body.harness, status: "running", startedAt: new Date()
+  }).returning();
+  await addIssueEvent(issue.id, p, "issue.agent_started", { runId: run!.id, harness: body.harness });
+  return data(run, 201);
+});
+
+app.patch("/api/v1/agent-runs/:runId", async (c) => {
+  const p = await principal(c.req.raw, "agents:write");
+  if (p.actorType !== "api_token") throw new ApiError("agent_token_required", "An agent token is required", 403);
+  const body = await jsonBody(c.req.raw, z.object({
+    status: runStatusSchema.optional(), externalThreadId: z.string().max(200).optional(), summary: z.string().max(10_000).optional(), error: z.string().max(10_000).optional()
+  }));
+  const [agent] = await getDatabase().select().from(agentInstances).where(and(eq(agentInstances.userId, p.userId), eq(agentInstances.tokenId, p.actorId))).limit(1);
+  if (!agent) throw new ApiError("agent_not_found", "Paired agent was not found", 404);
+  const terminal = body.status && ["succeeded", "failed", "cancelled"].includes(body.status);
+  const [updated] = await getDatabase().update(agentRuns).set({
+    ...body, updatedAt: new Date(), finishedAt: terminal ? new Date() : undefined
+  }).where(and(eq(agentRuns.id, c.req.param("runId")), eq(agentRuns.userId, p.userId), eq(agentRuns.agentInstanceId, agent.id))).returning();
+  if (!updated) throw new ApiError("agent_run_not_found", "Agent run was not found", 404);
+  if (body.status === "waiting" || body.status === "failed") await addIssueEvent(updated.issueId, p, body.status === "waiting" ? "issue.agent_waiting" : "issue.agent_failed", { runId: updated.id, error: body.error });
+  return data(updated);
 });
 
 app.get("/api/v1/tokens", async (c) => {
@@ -595,8 +745,8 @@ app.post("/api/v1/oauth/extension/authorize", async (c) => {
   const p = await principal(c.req.raw, "*");
   if (p.actorType !== "user") throw new ApiError("user_session_required", "A website session is required", 403);
   const body = await jsonBody(c.req.raw, z.object({ redirectUri: z.string().url(), codeChallenge: z.string().min(43).max(128) }));
-  const redirectUri = parseExtensionRedirectUri(body.redirectUri);
-  if (!redirectUri) throw new ApiError("invalid_redirect_uri", "Only Chrome extension callback URLs are allowed", 422);
+  const redirectUri = parseExtensionRedirectUri(body.redirectUri, new URL(c.req.url).origin);
+  if (!redirectUri) throw new ApiError("invalid_redirect_uri", "Only approved browser extension callback URLs are allowed", 422);
   return data({ redirectUrl: await issueExtensionAuthorizationCode(p.userId, redirectUri, body.codeChallenge) });
 });
 

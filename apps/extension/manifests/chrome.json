@@ -4,9 +4,10 @@
   "description": "圈选网页 DOM，将精确缺陷上下文交给 AI 编程 Agent。",
   "version": "0.1.1",
   "minimum_chrome_version": "116",
-  "permissions": ["activeTab", "scripting", "storage", "identity"],
+  "permissions": ["activeTab", "scripting", "storage", "identity", "sidePanel"],
   "host_permissions": ["https://pinhere.dev/*", "https://pinhere-delta.vercel.app/*"],
   "background": { "service_worker": "background.js", "type": "module" },
+  "side_panel": { "default_path": "popup.html" },
   "action": {
     "default_title": "打开 Pinhere",
     "default_popup": "popup.html",

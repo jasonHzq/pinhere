@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite build --watch --mode development",
     "build": "vite build",
+    "build:safari": "vite build --mode safari",
+    "package:safari": "pnpm build:safari && ditto -c -k --norsrc dist-safari/ ../web/public/downloads/pinhere-safari-extension-v0.1.1.zip",
     "lint": "tsc --noEmit --pretty false",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

@@ -11,6 +11,8 @@ export default [
   route(":locale", "routes/landing.tsx"),
   route(":locale/sign-in", "routes/sign-in.tsx"),
   route(":locale/extension/authorize", "routes/extension-authorize.tsx"),
+  route(":locale/extension/authorized", "routes/extension-authorized.tsx"),
+  route(":locale/pair", "routes/agent-pair.tsx"),
   route(":locale/app", "routes/app-layout.tsx", [
     index("routes/board.tsx"),
     route("board", "routes/board.tsx", { id: "routes/board-alias" }),

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Github, LoaderCircle, Mail, MoveLeft } from "lucide-react";
+import { ArrowUpRight, Github, LoaderCircle, Mail, MoveLeft, ShieldCheck } from "lucide-react";
 import type { MetaFunction } from "react-router";
 import { Link, useParams, useSearchParams } from "react-router";
 import { Logo } from "~/components/logo";
@@ -39,21 +39,31 @@ export default function SignIn() {
   async function sendLink(event: React.FormEvent) {
     event.preventDefault();
     setStatus("loading");
-    const result = await authClient.signIn.magicLink({ email, callbackURL });
-    setStatus(result.error ? "error" : "sent");
+    try {
+      const result = await authClient.signIn.magicLink({ email, callbackURL });
+      setStatus(result.error ? "error" : "sent");
+    } catch {
+      setStatus("error");
+    }
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-white px-5 py-12 text-[#151515]">
-      <div className="w-full max-w-[440px]">
-        <div className="mb-6 flex items-center justify-between"><Logo locale={locale} /><Link className="focus-ring flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-[#696969] hover:bg-black/5" to={`/${locale}`}><MoveLeft size={14} />{en ? "Back" : "返回"}</Link></div>
-        <Card className="rounded-[18px] border-[#151515] bg-white p-7 shadow-[7px_7px_0_#151515] md:p-9">
-          <div className="mb-7"><span className="font-mono text-[10px] font-medium uppercase tracking-[.18em] text-[#151515]">Personal workspace</span><h1 className="mt-3 text-3xl font-extrabold tracking-[-.055em]">{en ? "Sign in to continue" : "登录你的工作台"}</h1><p className="mt-2 text-sm leading-6 text-[#696969]">{en ? "One account for the website and Chrome extension." : "网站与 Chrome 扩展使用同一个个人账号。"}</p></div>
-          <Button className="w-full border-[#151515] bg-white text-[#151515] shadow-none hover:bg-[#f5f5f2]" variant="outline" type="button" disabled={githubBusy} onClick={() => void signInWithGithub()}>{githubBusy ? <LoaderCircle className="animate-spin" size={17} /> : <Github size={17} />}{en ? "Continue with GitHub" : "使用 GitHub 登录"}</Button>
+    <main className="workspace-grid noise min-h-screen px-5 py-6 text-[#171a1d] md:px-8 md:py-8">
+      <div className="mx-auto flex max-w-[1120px] items-center justify-between"><Logo locale={locale} /><Link className="focus-ring flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-xs font-medium text-[#69737c] transition-colors hover:bg-white/70 hover:text-[#171a1d]" to={`/${locale}`}><MoveLeft size={14} />{en ? "Back home" : "返回首页"}</Link></div>
+      <div className="mx-auto grid min-h-[calc(100vh-7rem)] max-w-[1120px] items-center gap-12 py-10 lg:grid-cols-[1fr_440px] lg:gap-24">
+        <section className="hidden lg:block">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#bfcef9] bg-[#eff6ff] px-3 py-1.5 font-mono text-[10px] uppercase tracking-[.12em] text-[#1d4ed8]"><span className="pulse-pin size-1.5 rounded-full bg-[#2563eb]" />{en ? "A quiet place for clear handoffs" : "让每一次交接都清清楚楚"}</div>
+          <h1 className="font-display max-w-[620px] text-[clamp(3.2rem,6vw,5.5rem)] font-bold leading-[.98] tracking-[-.05em]">{en ? <>See it. Pin it.<br /><span className="text-[#2563eb]">Ship it.</span></> : <>看到问题，<br /><span className="text-[#2563eb]">就钉在这里。</span></>}</h1>
+          <p className="mt-7 max-w-[520px] text-base leading-8 text-[#68737c]">{en ? "Your selected element, screenshot, and repair context stay together from first report to final fix." : "圈选元素、现场截图和修复上下文会始终待在一起，从发现问题一直到修复完成。"}</p>
+          <div className="mt-10 flex items-center gap-3 text-xs font-medium text-[#526277]"><span className="grid size-9 place-items-center rounded-xl bg-[#eff6ff] text-[#2563eb]"><ShieldCheck size={17} /></span>{en ? "Private by default · Minimal extension permissions" : "默认私密 · 扩展仅申请最小权限"}</div>
+        </section>
+        <Card className="warm-panel w-full p-6 sm:p-8">
+          <div className="mb-7"><span className="font-mono text-[10px] font-medium uppercase tracking-[.16em] text-[#5f7180]">Personal workspace</span><h1 className="font-display mt-3 text-3xl font-bold tracking-[-.045em] lg:text-4xl">{en ? "Welcome back" : "欢迎回来"}</h1><p className="mt-2 text-sm leading-6 text-[#69737c]">{en ? "One account for the website and Chrome extension." : "网站与 Chrome 扩展使用同一个个人账号。"}</p></div>
+          <Button className="w-full" variant="outline" type="button" disabled={githubBusy} onClick={() => void signInWithGithub()}>{githubBusy ? <LoaderCircle className="animate-spin" size={17} /> : <Github size={17} />}{en ? "Continue with GitHub" : "使用 GitHub 登录"}<ArrowUpRight className="ml-auto" size={15} /></Button>
           {githubError && <p className="mt-3 text-xs leading-5 text-[#bb2d3b]">{githubError}</p>}
-          <div className="my-6 flex items-center gap-3"><span className="h-px flex-1 bg-[#dfdfdc]" /><span className="font-mono text-[10px] text-[#858585]">OR</span><span className="h-px flex-1 bg-[#dfdfdc]" /></div>
-          {status === "sent" ? <div className="rounded-xl border border-[#151515] bg-[#151515] p-4 text-sm leading-6 text-white"><strong>{en ? "Check your inbox." : "请检查邮箱。"}</strong><br /><span className="text-white/65">{en ? "The one-time link expires in 10 minutes." : "一次性登录链接将在 10 分钟后过期。"}</span></div> : (
-            <form onSubmit={sendLink} className="space-y-3"><label className="block text-xs font-bold" htmlFor="email">{en ? "Email address" : "邮箱地址"}</label><Input className="border-[#bdbdb9] bg-white focus:border-[#151515]" id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required /><Button className="w-full border-[#151515] bg-[#151515] shadow-[0_4px_12px_rgba(0,0,0,.14)] hover:bg-[#303030]" disabled={status === "loading"}>{status === "loading" ? <LoaderCircle className="animate-spin" size={17} /> : <Mail size={17} />}{en ? "Email me a sign-in link" : "发送魔法登录链接"}</Button>{status === "error" && <p className="text-xs text-[#bb2d3b]">{en ? "Could not send the link. Try again." : "登录链接发送失败，请重试。"}</p>}</form>
+          <div className="my-6 flex items-center gap-3"><span className="h-px flex-1 bg-[#d8dee4]" /><span className="font-mono text-[9px] tracking-[.12em] text-[#7d8790]">OR</span><span className="h-px flex-1 bg-[#d8dee4]" /></div>
+          {status === "sent" ? <div role="status" className="rounded-2xl border border-[#bfd0d9] bg-[#eaf1f5] p-4 text-sm leading-6 text-[#365466]"><strong>{en ? "Check your inbox." : "请检查邮箱。"}</strong><br /><span className="text-[#5d7180]">{en ? "The one-time link expires in 10 minutes." : "一次性登录链接将在 10 分钟后过期。"}</span></div> : (
+            <form onSubmit={sendLink} className="space-y-3"><label className="block text-xs font-semibold" htmlFor="email">{en ? "Email address" : "邮箱地址"}</label><Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" required /><Button className="w-full" disabled={status === "loading"}>{status === "loading" ? <LoaderCircle className="animate-spin" size={17} /> : <Mail size={17} />}{en ? "Email me a sign-in link" : "发送登录链接"}</Button>{status === "error" && <p role="alert" className="text-xs text-[#a93e3e]">{en ? "Could not send the link. Try again." : "登录链接发送失败，请重试。"}</p>}</form>
           )}
         </Card>
       </div>

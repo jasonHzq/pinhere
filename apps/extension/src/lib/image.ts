@@ -19,13 +19,17 @@ export async function annotateScreenshot(src: string, dom: DomContext) {
 }
 
 export async function cropAndCompress(src: string, crop: Rect) {
-  const image = await loadImage(src); let scale = 1; let quality = .88; let output = "";
+  const image = await loadImage(src); let scale = 1; let quality = .88; let output = ""; let contentType: "image/webp" | "image/jpeg" = "image/webp";
   for (let attempt = 0; attempt < 8; attempt++) {
     const canvas = document.createElement("canvas"); canvas.width = Math.max(1, Math.round(crop.width * scale)); canvas.height = Math.max(1, Math.round(crop.height * scale));
     canvas.getContext("2d")!.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, canvas.width, canvas.height);
-    output = canvas.toDataURL("image/webp", quality);
+    output = canvas.toDataURL(contentType, quality);
+    if (contentType === "image/webp" && !output.startsWith("data:image/webp")) {
+      contentType = "image/jpeg";
+      output = canvas.toDataURL(contentType, quality);
+    }
     const bytes = Math.ceil((output.length - output.indexOf(",") - 1) * .75);
-    if (bytes <= 2 * 1024 * 1024) return output;
+    if (bytes <= 2 * 1024 * 1024) return { base64: output, contentType, extension: contentType === "image/webp" ? "webp" : "jpg" };
     quality = Math.max(.58, quality - .08); scale *= .86;
   }
   throw new Error("截图压缩后仍超过 2 MiB，请缩小裁剪范围");

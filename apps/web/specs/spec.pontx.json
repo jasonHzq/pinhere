@@ -5,7 +5,7 @@
   "info": {
     "title": "Pinhere API",
     "version": "1.0.0",
-    "description": "Pinhere 的项目、Origin、缺陷、截图、Webhook、PAT 与浏览器扩展 OAuth API。全部 Endpoint 都处理私有数据或持久化变更，因此 Pontx Hub 公开代理默认禁用。"
+    "description": "Pinhere 的项目、Origin、缺陷、截图、Agent、Webhook、PAT 与浏览器扩展 OAuth API。全部 Endpoint 都处理私有数据或持久化变更，因此 Pontx Hub 公开代理默认禁用。"
   },
   "servers": [
     {
@@ -26,6 +26,10 @@
     {
       "name": "attachments",
       "description": "私有截图上传与下载。"
+    },
+    {
+      "name": "agents",
+      "description": "本地 Agent 配对、心跳与修复运行记录。"
     },
     {
       "name": "webhooks",
@@ -1969,6 +1973,110 @@
         }
       }
     },
+    "issues/heartbeatIssue": {
+      "operationId": "heartbeatIssue",
+      "summary": "续期缺陷认领",
+      "description": "领取方延长 in_progress 缺陷租约。",
+      "method": "POST",
+      "path": "/issues/{issueId}/heartbeat",
+      "consumes": [],
+      "produces": [
+        "application/json"
+      ],
+      "parameters": [
+        {
+          "in": "path",
+          "name": "issueId",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "缺陷 ID。",
+            "examples": [
+              "iss_example"
+            ]
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "租约已续期。",
+          "schema": {
+            "type": "object",
+            "description": "已续期缺陷。",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/Issue",
+                "description": "已续期缺陷。"
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "已续期缺陷。",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/Issue",
+                    "description": "已续期缺陷。"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "标准错误响应。",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        }
+      },
+      "tags": [
+        "issues"
+      ],
+      "security": [
+        {
+          "pinherePat": [
+            "issues:write"
+          ]
+        },
+        {
+          "websiteSession": []
+        }
+      ],
+      "requestExamples": {
+        "default": {
+          "request": {
+            "path": {
+              "issueId": "iss_example"
+            },
+            "query": {},
+            "headers": {}
+          },
+          "expectedStatus": "200"
+        }
+      },
+      "metadata": {
+        "execution": {
+          "enabled": false,
+          "disabledReason": "该接口会产生持久化状态变更；Pontx Hub 不代理执行。CLI 必须先预览，并在显式确认后才可使用调用方自己的凭证执行。"
+        }
+      }
+    },
     "issues/claimNextIssue": {
       "operationId": "claimNextIssue",
       "summary": "领取最早缺陷",
@@ -2831,6 +2939,781 @@
         "execution": {
           "enabled": false,
           "disabledReason": "响应包含账号私有资源、缺陷正文、DOM、截图、Token 元数据或投递诊断；Pontx Hub 不代理执行，请仅在受控本地环境中使用调用方自己的凭证。"
+        }
+      }
+    },
+    "agents/createAgentPairing": {
+      "operationId": "createAgentPairing",
+      "summary": "创建 Agent 配对",
+      "description": "创建十分钟有效的一次性设备配对。",
+      "method": "POST",
+      "path": "/agent-pairings",
+      "consumes": [
+        "application/json"
+      ],
+      "produces": [
+        "application/json"
+      ],
+      "parameters": [
+        {
+          "name": "body",
+          "in": "body",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/AgentPairingInput"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentPairingInput"
+              }
+            }
+          }
+        }
+      ],
+      "responses": {
+        "201": {
+          "description": "配对已创建。",
+          "schema": {
+            "type": "object",
+            "description": "配对信息。",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AgentPairing",
+                "description": "配对信息。"
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "配对信息。",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/AgentPairing",
+                    "description": "配对信息。"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "标准错误响应。",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        }
+      },
+      "tags": [
+        "agents"
+      ],
+      "security": [],
+      "requestExamples": {
+        "default": {
+          "request": {
+            "path": {},
+            "query": {},
+            "headers": {},
+            "body": {
+              "name": "Mac Agent",
+              "platform": "darwin-arm64",
+              "harness": "codex"
+            }
+          },
+          "expectedStatus": "201"
+        }
+      },
+      "metadata": {
+        "execution": {
+          "enabled": false,
+          "disabledReason": "该接口会创建、轮换或返回只显示一次的凭证；Pontx Hub 不代理执行，也不得记录返回值。CLI 必须先预览并要求显式确认。"
+        }
+      }
+    },
+    "agents/approveAgentPairing": {
+      "operationId": "approveAgentPairing",
+      "summary": "批准 Agent 配对",
+      "description": "网站账号批准一次性用户码。",
+      "method": "POST",
+      "path": "/agent-pairings/{userCode}/approve",
+      "consumes": [],
+      "produces": [
+        "application/json"
+      ],
+      "parameters": [
+        {
+          "in": "path",
+          "name": "userCode",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "examples": [
+              "ABCD-EFGH"
+            ]
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "配对已批准。",
+          "schema": {
+            "type": "object",
+            "description": "批准结果。",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "object",
+                "description": "批准结果。"
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "批准结果。",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "type": "object",
+                    "description": "批准结果。"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "标准错误响应。",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        }
+      },
+      "tags": [
+        "agents"
+      ],
+      "security": [
+        {
+          "websiteSession": []
+        }
+      ],
+      "requestExamples": {
+        "default": {
+          "request": {
+            "path": {
+              "userCode": "ABCD-EFGH"
+            },
+            "query": {},
+            "headers": {}
+          },
+          "expectedStatus": "200"
+        }
+      },
+      "metadata": {
+        "execution": {
+          "enabled": false,
+          "disabledReason": "该接口会创建、轮换或返回只显示一次的凭证；Pontx Hub 不代理执行，也不得记录返回值。CLI 必须先预览并要求显式确认。"
+        }
+      }
+    },
+    "agents/exchangeAgentPairingToken": {
+      "operationId": "exchangeAgentPairingToken",
+      "summary": "交换 Agent Token",
+      "description": "设备轮询批准状态并一次性取得 Agent Token。",
+      "method": "POST",
+      "path": "/agent-pairings/token",
+      "consumes": [
+        "application/json"
+      ],
+      "produces": [
+        "application/json"
+      ],
+      "parameters": [
+        {
+          "name": "body",
+          "in": "body",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/AgentPairingTokenInput"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentPairingTokenInput"
+              }
+            }
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Agent 已配对。",
+          "schema": {
+            "type": "object",
+            "description": "配对 Token。",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AgentPairingTokenResult",
+                "description": "配对 Token。"
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "配对 Token。",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/AgentPairingTokenResult",
+                    "description": "配对 Token。"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "202": {
+          "description": "等待用户批准。",
+          "schema": {
+            "type": "object",
+            "description": "等待状态。",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AgentPairingTokenResult",
+                "description": "等待状态。"
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "等待状态。",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/AgentPairingTokenResult",
+                    "description": "等待状态。"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "标准错误响应。",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        }
+      },
+      "tags": [
+        "agents"
+      ],
+      "security": [],
+      "requestExamples": {
+        "default": {
+          "request": {
+            "path": {},
+            "query": {},
+            "headers": {},
+            "body": {
+              "deviceCode": "ph_dev_redacted"
+            }
+          },
+          "expectedStatus": "200"
+        }
+      },
+      "metadata": {
+        "execution": {
+          "enabled": false,
+          "disabledReason": "该接口交换并返回 OAuth 访问令牌与刷新令牌；Pontx Hub 不代理执行，凭证只能由调用方环境持有且不得写入日志。"
+        }
+      }
+    },
+    "agents/listAgents": {
+      "operationId": "listAgents",
+      "summary": "列出 Agent",
+      "description": "列出当前账号已配对的 Agent。",
+      "method": "GET",
+      "path": "/agents",
+      "consumes": [],
+      "produces": [
+        "application/json"
+      ],
+      "parameters": [],
+      "responses": {
+        "200": {
+          "description": "Agent 列表。",
+          "schema": {
+            "type": "object",
+            "description": "Agent 列表。",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AgentInstance"
+                },
+                "description": "Agent 列表。"
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Agent 列表。",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AgentInstance"
+                    },
+                    "description": "Agent 列表。"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "标准错误响应。",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        }
+      },
+      "tags": [
+        "agents"
+      ],
+      "security": [
+        {
+          "pinherePat": [
+            "agents:write"
+          ]
+        },
+        {
+          "websiteSession": []
+        }
+      ],
+      "requestExamples": {
+        "default": {
+          "request": {
+            "path": {},
+            "query": {},
+            "headers": {}
+          },
+          "expectedStatus": "200"
+        }
+      },
+      "metadata": {
+        "execution": {
+          "enabled": false,
+          "disabledReason": "响应包含账号私有资源、缺陷正文、DOM、截图、Token 元数据或投递诊断；Pontx Hub 不代理执行，请仅在受控本地环境中使用调用方自己的凭证。"
+        }
+      }
+    },
+    "agents/heartbeatAgent": {
+      "operationId": "heartbeatAgent",
+      "summary": "Agent 心跳",
+      "description": "更新 Agent 在线时间和 CLI 版本。",
+      "method": "POST",
+      "path": "/agents/heartbeat",
+      "consumes": [
+        "application/json"
+      ],
+      "produces": [
+        "application/json"
+      ],
+      "parameters": [
+        {
+          "name": "body",
+          "in": "body",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/AgentHeartbeatInput"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentHeartbeatInput"
+              }
+            }
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "心跳已记录。",
+          "schema": {
+            "type": "object",
+            "description": "Agent。",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AgentInstance",
+                "description": "Agent。"
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Agent。",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/AgentInstance",
+                    "description": "Agent。"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "标准错误响应。",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        }
+      },
+      "tags": [
+        "agents"
+      ],
+      "security": [
+        {
+          "pinherePat": [
+            "agents:write"
+          ]
+        },
+        {
+          "websiteSession": []
+        }
+      ],
+      "requestExamples": {
+        "default": {
+          "request": {
+            "path": {},
+            "query": {},
+            "headers": {},
+            "body": {
+              "version": "0.1.0"
+            }
+          },
+          "expectedStatus": "200"
+        }
+      },
+      "metadata": {
+        "execution": {
+          "enabled": false,
+          "disabledReason": "该接口会产生持久化状态变更；Pontx Hub 不代理执行。CLI 必须先预览，并在显式确认后才可使用调用方自己的凭证执行。"
+        }
+      }
+    },
+    "agents/createAgentRun": {
+      "operationId": "createAgentRun",
+      "summary": "创建 Agent Run",
+      "description": "为已由当前 Agent 认领的缺陷创建运行记录。",
+      "method": "POST",
+      "path": "/agent-runs",
+      "consumes": [
+        "application/json"
+      ],
+      "produces": [
+        "application/json"
+      ],
+      "parameters": [
+        {
+          "name": "body",
+          "in": "body",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/AgentRunInput"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentRunInput"
+              }
+            }
+          }
+        }
+      ],
+      "responses": {
+        "201": {
+          "description": "运行已创建。",
+          "schema": {
+            "type": "object",
+            "description": "Agent Run。",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AgentRun",
+                "description": "Agent Run。"
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Agent Run。",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/AgentRun",
+                    "description": "Agent Run。"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "标准错误响应。",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        }
+      },
+      "tags": [
+        "agents"
+      ],
+      "security": [
+        {
+          "pinherePat": [
+            "agents:write"
+          ]
+        },
+        {
+          "websiteSession": []
+        }
+      ],
+      "requestExamples": {
+        "default": {
+          "request": {
+            "path": {},
+            "query": {},
+            "headers": {},
+            "body": {
+              "issueId": "iss_example",
+              "harness": "codex"
+            }
+          },
+          "expectedStatus": "201"
+        }
+      },
+      "metadata": {
+        "execution": {
+          "enabled": false,
+          "disabledReason": "该接口会产生持久化状态变更；Pontx Hub 不代理执行。CLI 必须先预览，并在显式确认后才可使用调用方自己的凭证执行。"
+        }
+      }
+    },
+    "agents/updateAgentRun": {
+      "operationId": "updateAgentRun",
+      "summary": "更新 Agent Run",
+      "description": "更新 Thread ID、运行状态、摘要或错误。",
+      "method": "PATCH",
+      "path": "/agent-runs/{runId}",
+      "consumes": [
+        "application/json"
+      ],
+      "produces": [
+        "application/json"
+      ],
+      "parameters": [
+        {
+          "in": "path",
+          "name": "runId",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "examples": [
+              "run_example"
+            ]
+          }
+        },
+        {
+          "name": "body",
+          "in": "body",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/AgentRunUpdateInput"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentRunUpdateInput"
+              }
+            }
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "运行已更新。",
+          "schema": {
+            "type": "object",
+            "description": "Agent Run。",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AgentRun",
+                "description": "Agent Run。"
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Agent Run。",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/AgentRun",
+                    "description": "Agent Run。"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "标准错误响应。",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        }
+      },
+      "tags": [
+        "agents"
+      ],
+      "security": [
+        {
+          "pinherePat": [
+            "agents:write"
+          ]
+        },
+        {
+          "websiteSession": []
+        }
+      ],
+      "requestExamples": {
+        "default": {
+          "request": {
+            "path": {
+              "runId": "run_example"
+            },
+            "query": {},
+            "headers": {},
+            "body": {
+              "status": "running",
+              "externalThreadId": "thr_example"
+            }
+          },
+          "expectedStatus": "200"
+        }
+      },
+      "metadata": {
+        "execution": {
+          "enabled": false,
+          "disabledReason": "该接口会产生持久化状态变更；Pontx Hub 不代理执行。CLI 必须先预览，并在显式确认后才可使用调用方自己的凭证执行。"
         }
       }
     },
@@ -4239,7 +5122,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "ph_pat_*",
-        "description": "调用方环境持有的 Pinhere PAT。固定权限为 projects:read、issues:read 和 issues:write。"
+        "description": "调用方环境持有的 Pinhere PAT。常规 PAT 包含项目与缺陷权限；Agent 配对 PAT 额外包含 agents:write。"
       },
       "extensionOAuth": {
         "type": "oauth2",
@@ -4327,6 +5210,28 @@
           "description": "Token ID。",
           "examples": [
             "pat_example"
+          ]
+        }
+      },
+      "UserCode": {
+        "in": "path",
+        "name": "userCode",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "examples": [
+            "ABCD-EFGH"
+          ]
+        }
+      },
+      "RunId": {
+        "in": "path",
+        "name": "runId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "examples": [
+            "run_example"
           ]
         }
       },
@@ -4956,6 +5861,22 @@
               "2026-08-15T08:05:00.000Z"
             ]
           },
+          "claimExpiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "认领租约过期时间。",
+            "examples": [
+              "2026-08-15T12:05:00.000Z"
+            ]
+          },
+          "handoffPrompt": {
+            "type": "string",
+            "description": "交给 AI 的 Skill 安装与问题处理提示。",
+            "examples": [
+              "请使用 Pinhere Skill 修复问题 iss_example。"
+            ]
+          },
           "completedAt": {
             "type": "string",
             "format": "date-time",
@@ -5002,7 +5923,7 @@
       },
       "IssueDetail": {
         "title": "缺陷详情",
-        "description": "缺陷及鉴权截图下载路径。",
+        "description": "缺陷、交接提示及鉴权截图下载路径。",
         "allOf": [
           {
             "$ref": "#/components/schemas/Issue"
@@ -5011,7 +5932,8 @@
             "type": "object",
             "description": "缺陷详情扩展字段。",
             "required": [
-              "screenshotUrl"
+              "screenshotUrl",
+              "handoffPrompt"
             ],
             "properties": {
               "screenshotUrl": {
@@ -5020,6 +5942,13 @@
                 "description": "关联截图的相对下载路径；无截图时为 null。",
                 "examples": [
                   "/api/v1/attachments/att_example"
+                ]
+              },
+              "handoffPrompt": {
+                "type": "string",
+                "description": "交给 AI 的 Skill 安装与问题处理提示。",
+                "examples": [
+                  "请使用 Pinhere Skill 修复问题 iss_example。"
                 ]
               }
             }
@@ -5946,6 +6875,250 @@
             }
           }
         ]
+      },
+      "AgentPairingInput": {
+        "title": "Agent 配对输入",
+        "type": "object",
+        "required": [
+          "name",
+          "platform"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "platform": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "harness": {
+            "type": "string",
+            "enum": [
+              "codex"
+            ]
+          }
+        }
+      },
+      "AgentPairing": {
+        "title": "Agent 配对",
+        "type": "object",
+        "required": [
+          "deviceCode",
+          "userCode",
+          "verificationUri",
+          "expiresIn",
+          "interval"
+        ],
+        "properties": {
+          "pairingId": {
+            "type": "string"
+          },
+          "deviceCode": {
+            "type": "string"
+          },
+          "userCode": {
+            "type": "string"
+          },
+          "verificationUri": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expiresIn": {
+            "type": "integer"
+          },
+          "interval": {
+            "type": "integer"
+          }
+        }
+      },
+      "AgentPairingTokenInput": {
+        "title": "配对 Token 输入",
+        "type": "object",
+        "required": [
+          "deviceCode"
+        ],
+        "properties": {
+          "deviceCode": {
+            "type": "string"
+          }
+        }
+      },
+      "AgentPairingTokenResult": {
+        "title": "配对 Token 结果",
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "paired"
+            ]
+          },
+          "token": {
+            "type": "string"
+          },
+          "tokenType": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "agent": {
+            "$ref": "#/components/schemas/AgentInstance",
+            "nullable": true
+          }
+        }
+      },
+      "AgentInstance": {
+        "title": "Agent 实例",
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "platform",
+          "harness"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "harness": {
+            "type": "string",
+            "enum": [
+              "codex"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "AgentHeartbeatInput": {
+        "title": "Agent 心跳输入",
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "maxLength": 100
+          }
+        }
+      },
+      "AgentRun": {
+        "title": "Agent 运行",
+        "type": "object",
+        "required": [
+          "id",
+          "issueId",
+          "agentInstanceId",
+          "harness",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "issueId": {
+            "type": "string"
+          },
+          "agentInstanceId": {
+            "type": "string"
+          },
+          "harness": {
+            "type": "string",
+            "enum": [
+              "codex"
+            ]
+          },
+          "externalThreadId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "waiting",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "AgentRunInput": {
+        "title": "创建 Agent 运行输入",
+        "type": "object",
+        "required": [
+          "issueId"
+        ],
+        "properties": {
+          "issueId": {
+            "type": "string"
+          },
+          "harness": {
+            "type": "string",
+            "enum": [
+              "codex"
+            ]
+          }
+        }
+      },
+      "AgentRunUpdateInput": {
+        "title": "更新 Agent 运行输入",
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "waiting",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "externalThreadId": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "error": {
+            "type": "string",
+            "maxLength": 10000
+          }
+        }
       },
       "OAuthTokenResult": {
         "title": "OAuth Token 结果",

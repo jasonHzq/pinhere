@@ -25,9 +25,10 @@ export function installDomPicker() {
   });
 
   const hint = document.createElement("div");
-  hint.textContent = "Pinhere · 点击选择元素 · Esc 取消";
+  const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  hint.textContent = coarsePointer ? "Pinhere · 触摸并松开选择元素" : "Pinhere · 点击选择元素 · Esc 取消";
   Object.assign(hint.style, {
-    position: "fixed", top: "14px", left: "50%", transform: "translateX(-50%)", zIndex: "2147483647",
+    position: "fixed", pointerEvents: "none", top: "max(14px, env(safe-area-inset-top))", left: "50%", transform: "translateX(-50%)", zIndex: "2147483647",
     background: "#171916", color: "white", font: "600 12px sans-serif", padding: "9px 13px", borderRadius: "8px",
     boxShadow: "0 8px 30px rgba(0,0,0,.25)"
   });
@@ -105,9 +106,12 @@ export function installDomPicker() {
     document.removeEventListener("mousemove", move, true);
     document.removeEventListener("click", click, true);
     document.removeEventListener("keydown", key, true);
+    document.removeEventListener("touchstart", touchStart, true);
+    document.removeEventListener("touchmove", touchMove, true);
+    document.removeEventListener("touchend", touchEnd, true);
   };
-  const move = (event: MouseEvent) => {
-    const element = document.elementFromPoint(event.clientX, event.clientY);
+  const highlight = (clientX: number, clientY: number) => {
+    const element = document.elementFromPoint(clientX, clientY);
     if (!element || element === overlay || element === label || element === hint) return;
     target = element;
     const rect = element.getBoundingClientRect();
@@ -116,13 +120,39 @@ export function installDomPicker() {
     label.style.left = `${Math.max(8, rect.left)}px`;
     label.style.top = `${Math.max(8, rect.top - 29)}px`;
   };
-  const click = (event: MouseEvent) => {
-    event.preventDefault();
-    event.stopImmediatePropagation();
+  const move = (event: MouseEvent) => highlight(event.clientX, event.clientY);
+  const choose = () => {
     if (!target) return;
     const dom = snapshot(target);
     cleanup();
     void chrome.runtime.sendMessage({ type: "pinhere/dom-selected", dom });
+  };
+  const click = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    highlight(event.clientX, event.clientY);
+    choose();
+  };
+  const touchStart = (event: TouchEvent) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    highlight(touch.clientX, touch.clientY);
+  };
+  const touchMove = (event: TouchEvent) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    highlight(touch.clientX, touch.clientY);
+  };
+  const touchEnd = (event: TouchEvent) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const touch = event.changedTouches[0];
+    if (touch) highlight(touch.clientX, touch.clientY);
+    choose();
   };
   const key = (event: KeyboardEvent) => {
     if (event.key !== "Escape") return;
@@ -132,5 +162,8 @@ export function installDomPicker() {
   document.addEventListener("mousemove", move, true);
   document.addEventListener("click", click, true);
   document.addEventListener("keydown", key, true);
+  document.addEventListener("touchstart", touchStart, { capture: true, passive: false });
+  document.addEventListener("touchmove", touchMove, { capture: true, passive: false });
+  document.addEventListener("touchend", touchEnd, { capture: true, passive: false });
   return { started: true };
 }
