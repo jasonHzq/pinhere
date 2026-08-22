@@ -8,8 +8,6 @@ import { getDatabase } from "~/db/client.server";
 import {
   apiTokens,
   attachments,
-  extensionCodes,
-  extensionTokens,
   issueEvents,
   issues,
   outboxEvents,
@@ -571,34 +569,58 @@ app.post("/api/v1/oauth/token", async (c) => {
     z.object({ grantType: z.literal("refresh_token"), refreshToken: z.string() })
   ]));
   const db = getDatabase();
-  let userId: string;
-  let oldTokenId: string | undefined;
-  if (body.grantType === "authorization_code") {
-    const digest = digestSecret(body.code);
-    const [grant] = await db.select().from(extensionCodes).where(and(eq(extensionCodes.codeDigest, digest), isNull(extensionCodes.usedAt), gt(extensionCodes.expiresAt, new Date()))).limit(1);
-    const challenge = createHash("sha256").update(body.codeVerifier).digest("base64url");
-    if (!grant || grant.redirectUri !== body.redirectUri || grant.codeChallenge !== challenge) throw new ApiError("invalid_grant", "Authorization code or PKCE verifier is invalid", 401);
-    const [consumed] = await db.update(extensionCodes).set({ usedAt: new Date() }).where(and(eq(extensionCodes.codeDigest, digest), isNull(extensionCodes.usedAt), gt(extensionCodes.expiresAt, new Date()))).returning({ codeDigest: extensionCodes.codeDigest });
-    if (!consumed) throw new ApiError("invalid_grant", "Authorization code was already used", 401);
-    userId = grant.userId;
-  } else {
-    const [record] = await db.select().from(extensionTokens).where(and(eq(extensionTokens.refreshDigest, digestSecret(body.refreshToken)), isNull(extensionTokens.revokedAt), gt(extensionTokens.refreshExpiresAt, new Date()))).limit(1);
-    if (!record) throw new ApiError("invalid_grant", "Refresh token is invalid or expired", 401);
-    userId = record.userId;
-    oldTokenId = record.id;
-  }
   const accessToken = createSecret("ph_ext");
   const refreshToken = createSecret("ph_rft");
   const tokenId = createId("ext");
   const accessExpiresAt = new Date(Date.now() + 15 * 60_000);
   const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 3_600_000);
-  await db.transaction(async (tx) => {
-    if (oldTokenId) {
-      const [rotated] = await tx.update(extensionTokens).set({ revokedAt: new Date(), rotatedAt: new Date() }).where(and(eq(extensionTokens.id, oldTokenId), isNull(extensionTokens.revokedAt))).returning({ id: extensionTokens.id });
-      if (!rotated) throw new ApiError("invalid_grant", "Refresh token was already rotated", 401);
-    }
-    await tx.insert(extensionTokens).values({ id: tokenId, userId, accessDigest: digestSecret(accessToken), refreshDigest: digestSecret(refreshToken), scopes: ["projects:read", "issues:create", "attachments:write"], accessExpiresAt, refreshExpiresAt });
-  });
+  const accessDigest = digestSecret(accessToken);
+  const refreshDigest = digestSecret(refreshToken);
+  let result: unknown;
+  if (body.grantType === "authorization_code") {
+    const challenge = createHash("sha256").update(body.codeVerifier).digest("base64url");
+    result = await db.execute(sql`
+      with consumed as (
+        update "extension_code"
+        set "usedAt" = now()
+        where "codeDigest" = ${digestSecret(body.code)}
+          and "usedAt" is null
+          and "expiresAt" > now()
+          and "redirectUri" = ${body.redirectUri}
+          and "codeChallenge" = ${challenge}
+        returning "userId"
+      )
+      insert into "extension_token" (
+        "id", "userId", "accessDigest", "refreshDigest", "scopes", "accessExpiresAt", "refreshExpiresAt"
+      )
+      select ${tokenId}, "userId", ${accessDigest}, ${refreshDigest},
+        array['projects:read', 'issues:create', 'attachments:write']::text[],
+        ${accessExpiresAt}, ${refreshExpiresAt}
+      from consumed
+      returning "id"
+    `);
+  } else {
+    result = await db.execute(sql`
+      with rotated as (
+        update "extension_token"
+        set "revokedAt" = now(), "rotatedAt" = now()
+        where "refreshDigest" = ${digestSecret(body.refreshToken)}
+          and "revokedAt" is null
+          and "refreshExpiresAt" > now()
+        returning "userId"
+      )
+      insert into "extension_token" (
+        "id", "userId", "accessDigest", "refreshDigest", "scopes", "accessExpiresAt", "refreshExpiresAt"
+      )
+      select ${tokenId}, "userId", ${accessDigest}, ${refreshDigest},
+        array['projects:read', 'issues:create', 'attachments:write']::text[],
+        ${accessExpiresAt}, ${refreshExpiresAt}
+      from rotated
+      returning "id"
+    `);
+  }
+  const issued = (result as { rows?: Array<{ id: string }> }).rows?.[0] ?? (result as Array<{ id: string }>)[0];
+  if (!issued) throw new ApiError("invalid_grant", body.grantType === "authorization_code" ? "Authorization code or PKCE verifier is invalid" : "Refresh token is invalid or expired", 401);
   return data({ accessToken, refreshToken, expiresIn: 900, tokenType: "Bearer", scopes: ["projects:read", "issues:create", "attachments:write"] });
 });
 
