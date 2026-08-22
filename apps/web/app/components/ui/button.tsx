@@ -3,12 +3,12 @@ import type { ButtonHTMLAttributes } from "react";
 import { cn } from "~/lib/cn";
 
 const buttonVariants = cva(
-  "focus-ring inline-flex cursor-pointer items-center justify-center gap-2 rounded-[10px] border text-sm font-bold transition-all disabled:pointer-events-none disabled:opacity-45",
+  "focus-ring inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border text-sm font-semibold transition-[transform,background-color,border-color,box-shadow] duration-150 disabled:pointer-events-none disabled:opacity-45",
   {
     variants: {
       variant: {
-        default: "border-[#164dd8] bg-[#164dd8] text-white shadow-[0_5px_16px_#164dd82d] hover:-translate-y-0.5 hover:bg-[#255ff0]",
-        outline: "border-[#c9c8c1] bg-[#f8f7f3] text-[#171916] hover:border-[#8f918b] hover:bg-white",
+        default: "border-[#171717] bg-[#171717] text-white shadow-[3px_3px_0_#cfcfca] hover:-translate-y-px hover:bg-[#30302e] hover:shadow-[4px_4px_0_#bdbdb7]",
+        outline: "border-[#c8c8c2] bg-white text-[#171717] hover:border-[#171717] hover:bg-[#f4f4f1]",
         ghost: "border-transparent bg-transparent hover:bg-black/5",
         danger: "border-[#bb2d3b] bg-[#bb2d3b] text-white hover:bg-[#a62431]"
       },

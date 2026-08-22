@@ -13,6 +13,7 @@ export default [
   route(":locale/extension/authorize", "routes/extension-authorize.tsx"),
   route(":locale/app", "routes/app-layout.tsx", [
     index("routes/board.tsx"),
+    route("board", "routes/board.tsx", { id: "routes/board-alias" }),
     route("projects", "routes/projects.tsx"),
     route("issues/:issueId", "routes/issue-detail.tsx"),
     route("settings", "routes/settings.tsx")

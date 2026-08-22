@@ -2,10 +2,10 @@ import type { HTMLAttributes } from "react";
 import { cn } from "~/lib/cn";
 
 const variants = {
-  open: "border-[#d9770644] bg-[#fff2d8] text-[#995304]",
-  in_progress: "border-[#164dd844] bg-[#e8efff] text-[#1644b8]",
-  done: "border-[#1d7a5244] bg-[#e0f4e9] text-[#17623f]",
-  neutral: "border-[#d6d5ce] bg-[#efeee9] text-[#61645e]"
+  open: "border-[#d6b479] bg-[#fff8e8] text-[#82550a]",
+  in_progress: "border-[#b8b8b1] bg-[#f0f0ec] text-[#20201e]",
+  done: "border-[#a7cdb7] bg-[#edf8f0] text-[#17623f]",
+  neutral: "border-[#d8d8d2] bg-[#f4f4f1] text-[#61615e]"
 };
 
 export function Badge({ className, variant = "neutral", ...props }: HTMLAttributes<HTMLSpanElement> & { variant?: keyof typeof variants }) {

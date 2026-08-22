@@ -9,7 +9,7 @@ export const links: LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
   {
     rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap"
+    href: "https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
   }
 ];
 
@@ -19,7 +19,7 @@ export const meta: MetaFunction = () => [
     name: "description",
     content: "Capture precise UI defects from Chrome and hand structured context to your coding agent."
   },
-  { name: "theme-color", content: "#f4f3ef" }
+  { name: "theme-color", content: "#121212" }
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
