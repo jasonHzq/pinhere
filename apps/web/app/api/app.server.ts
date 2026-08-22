@@ -95,6 +95,17 @@ app.get("/api/v1/projects", async (c) => {
   return data(rows);
 });
 
+// Keep this static route ahead of /:projectId so Hono does not treat "resolve"
+// as a project id when the extension looks up the active page's origin.
+app.get("/api/v1/projects/resolve", async (c) => {
+  const p = await principal(c.req.raw, "projects:read");
+  const origin = normalizeOrigin(c.req.query("url") ?? "");
+  const [match] = await getDatabase().select({ project: projects, origin: projectOrigins.origin }).from(projectOrigins)
+    .innerJoin(projects, eq(projectOrigins.projectId, projects.id))
+    .where(and(eq(projectOrigins.userId, p.userId), eq(projectOrigins.origin, origin))).limit(1);
+  return data({ project: match?.project ?? null, origin });
+});
+
 app.post("/api/v1/projects", async (c) => {
   const p = await principal(c.req.raw, "projects:write");
   const body = await jsonBody(c.req.raw, projectInput);
@@ -199,15 +210,6 @@ app.delete("/api/v1/projects/:projectId/origins/:encodedOrigin", async (c) => {
   `);
   const removed = (result as unknown as { rows?: Array<{ origin: string }> }).rows?.[0] ?? (result as unknown as Array<{ origin: string }>)[0];
   return new Response(null, { status: 204, headers: removed ? { ETag: resourceEtag(project.version + 1) } : undefined });
-});
-
-app.get("/api/v1/projects/resolve", async (c) => {
-  const p = await principal(c.req.raw, "projects:read");
-  const origin = normalizeOrigin(c.req.query("url") ?? "");
-  const [match] = await getDatabase().select({ project: projects, origin: projectOrigins.origin }).from(projectOrigins)
-    .innerJoin(projects, eq(projectOrigins.projectId, projects.id))
-    .where(and(eq(projectOrigins.userId, p.userId), eq(projectOrigins.origin, origin))).limit(1);
-  return data({ project: match?.project ?? null, origin });
 });
 
 app.get("/api/v1/issues", async (c) => {
