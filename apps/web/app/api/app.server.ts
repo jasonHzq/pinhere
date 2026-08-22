@@ -105,10 +105,14 @@ app.post("/api/v1/projects", async (c) => {
   const id = createId("prj");
   const db = getDatabase();
   try {
-    await db.transaction(async (tx) => {
-      await tx.insert(projects).values({ id, userId: p.userId, name: body.name, description: body.description });
-      if (normalized.length) await tx.insert(projectOrigins).values(normalized.map((origin) => ({ projectId: id, userId: p.userId, origin })));
-    });
+    if (normalized.length) {
+      await db.batch([
+        db.insert(projects).values({ id, userId: p.userId, name: body.name, description: body.description }),
+        db.insert(projectOrigins).values(normalized.map((origin) => ({ projectId: id, userId: p.userId, origin })))
+      ]);
+    } else {
+      await db.insert(projects).values({ id, userId: p.userId, name: body.name, description: body.description });
+    }
   } catch (error) {
     if (isUniqueViolation(error)) throw new ApiError("origin_already_assigned", "One of these origins already belongs to another project", 409);
     throw error;
@@ -163,10 +167,11 @@ app.post("/api/v1/projects/:projectId/origins", async (c) => {
   const replay = await findIdempotentResponse(p.userId, "addProjectOrigin", key, requestValue);
   if (replay) return replay;
   try {
-    await getDatabase().transaction(async (tx) => {
-      await tx.insert(projectOrigins).values({ projectId: project.id, userId: p.userId, origin });
-      await tx.update(projects).set({ updatedAt: new Date(), version: sql`${projects.version} + 1` }).where(eq(projects.id, project.id));
-    });
+    const db = getDatabase();
+    await db.batch([
+      db.insert(projectOrigins).values({ projectId: project.id, userId: p.userId, origin }),
+      db.update(projects).set({ updatedAt: new Date(), version: sql`${projects.version} + 1` }).where(eq(projects.id, project.id))
+    ]);
   } catch (error) {
     if (isUniqueViolation(error)) throw new ApiError("origin_already_assigned", "This origin already belongs to a project", 409);
     throw error;
@@ -181,11 +186,18 @@ app.delete("/api/v1/projects/:projectId/origins/:encodedOrigin", async (c) => {
   const project = await ownedProject(p.userId, c.req.param("projectId"));
   const origin = normalizeOrigin(decodeURIComponent(c.req.param("encodedOrigin")));
   const db = getDatabase();
-  const removed = await db.transaction(async (tx) => {
-    const [deleted] = await tx.delete(projectOrigins).where(and(eq(projectOrigins.projectId, project.id), eq(projectOrigins.origin, origin))).returning({ origin: projectOrigins.origin });
-    if (deleted) await tx.update(projects).set({ updatedAt: new Date(), version: sql`${projects.version} + 1` }).where(eq(projects.id, project.id));
-    return deleted;
-  });
+  const result = await db.execute(sql`
+    with removed as (
+      delete from "project_origin"
+      where "projectId" = ${project.id} and origin = ${origin}
+      returning origin
+    )
+    update project
+    set "updatedAt" = now(), version = version + 1
+    where id = ${project.id} and exists (select 1 from removed)
+    returning (select origin from removed) as origin
+  `);
+  const removed = (result as unknown as { rows?: Array<{ origin: string }> }).rows?.[0] ?? (result as unknown as Array<{ origin: string }>)[0];
   return new Response(null, { status: 204, headers: removed ? { ETag: resourceEtag(project.version + 1) } : undefined });
 });
 
@@ -239,21 +251,44 @@ app.post("/api/v1/issues", async (c) => {
   const eventId = createId("evt");
   const webhookEventId = createId("whe");
   const db = getDatabase();
-  await db.transaction(async (tx) => {
-    await tx.insert(issues).values({ ...body, id, userId: p.userId, pageUrl });
-    if (body.attachmentId) {
-      const [bound] = await tx.update(attachments).set({ issueId: id }).where(and(eq(attachments.id, body.attachmentId), eq(attachments.userId, p.userId), isNull(attachments.issueId))).returning({ id: attachments.id });
-      if (!bound) throw new ApiError("attachment_already_used", "Attachment is already attached to another issue", 409);
-    }
-    await tx.insert(issueEvents).values({ id: eventId, issueId: id, userId: p.userId, actorType: p.actorType, actorId: p.actorId, type: "issue.created", data: {} });
-    await tx.insert(outboxEvents).values({
-      id: webhookEventId, userId: p.userId, aggregateId: id, type: "issue.created",
-      payload: {
-        eventId: webhookEventId, projectId: body.projectId, issueId: id, createdAt: new Date().toISOString(),
-        prompt: `请使用 Pinhere Skill 处理缺陷 ${id}。先调用 claimIssue，再调用 getIssue 获取完整上下文。`
-      }
-    });
-  });
+  const webhookPayload = {
+    eventId: webhookEventId, projectId: body.projectId, issueId: id, createdAt: new Date().toISOString(),
+    prompt: `请使用 Pinhere Skill 处理缺陷 ${id}。先调用 claimIssue，再调用 getIssue 获取完整上下文。`
+  };
+  if (body.attachmentId) {
+    const result = await db.execute(sql`
+      with bound_attachment as (
+        update attachment
+        set "issueId" = ${id}
+        where id = ${body.attachmentId} and "userId" = ${p.userId} and "issueId" is null
+        returning id
+      ),
+      created_issue as (
+        insert into issue ("id", "userId", "projectId", title, description, "pageUrl", dom, source, "attachmentId")
+        select ${id}, ${p.userId}, ${body.projectId}, ${body.title}, ${body.description}, ${pageUrl},
+          ${JSON.stringify(body.dom)}::jsonb, ${body.source}::issue_source, ${body.attachmentId}
+        where exists (select 1 from bound_attachment)
+        returning id
+      ),
+      created_event as (
+        insert into "issue_event" ("id", "issueId", "userId", "actorType", "actorId", type, data)
+        select ${eventId}, id, ${p.userId}, ${p.actorType}, ${p.actorId ?? null}, 'issue.created', '{}'::jsonb
+        from created_issue
+      )
+      insert into "outbox_event" ("id", "userId", "aggregateId", type, payload)
+      select ${webhookEventId}, ${p.userId}, id, 'issue.created', ${JSON.stringify(webhookPayload)}::jsonb
+      from created_issue
+      returning "aggregateId"
+    `);
+    const created = (result as unknown as { rows?: Array<{ aggregateId: string }> }).rows?.[0] ?? (result as unknown as Array<{ aggregateId: string }>)[0];
+    if (!created) throw new ApiError("attachment_already_used", "Attachment is already attached to another issue", 409);
+  } else {
+    await db.batch([
+      db.insert(issues).values({ ...body, id, userId: p.userId, pageUrl }),
+      db.insert(issueEvents).values({ id: eventId, issueId: id, userId: p.userId, actorType: p.actorType, actorId: p.actorId, type: "issue.created", data: {} }),
+      db.insert(outboxEvents).values({ id: webhookEventId, userId: p.userId, aggregateId: id, type: "issue.created", payload: webhookPayload })
+    ]);
+  }
   const issue = await ownedIssue(p.userId, id);
   const response = { data: issue };
   await saveIdempotentResponse(p.userId, "createIssue", key, body, 201, response);
