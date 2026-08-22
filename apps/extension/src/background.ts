@@ -1,5 +1,5 @@
 import { PENDING_CAPTURE_KEY } from "@/lib/capture";
-import { completeOAuthLogin } from "@/lib/auth";
+import { AUTH_ERROR_KEY, AUTH_PENDING_KEY, completeOAuthLogin } from "@/lib/auth";
 import { installDomPicker } from "@/lib/picker";
 import { sanitizeUrl } from "@/lib/url";
 import type { DomContext, PendingCapture, Tokens } from "@/types";
@@ -7,7 +7,18 @@ import type { DomContext, PendingCapture, Tokens } from "@/types";
 let loginInFlight: Promise<Tokens> | null = null;
 
 function completeLogin() {
-  loginInFlight ??= completeOAuthLogin().finally(() => { loginInFlight = null; });
+  loginInFlight ??= (async () => {
+    await chrome.storage.local.set({ [AUTH_PENDING_KEY]: true });
+    await chrome.storage.local.remove(AUTH_ERROR_KEY);
+    try {
+      return await completeOAuthLogin();
+    } catch (error) {
+      await chrome.storage.local.set({ [AUTH_ERROR_KEY]: error instanceof Error ? error.message : "授权流程未完成" });
+      throw error;
+    } finally {
+      await chrome.storage.local.set({ [AUTH_PENDING_KEY]: false });
+    }
+  })().finally(() => { loginInFlight = null; });
   return loginInFlight;
 }
 

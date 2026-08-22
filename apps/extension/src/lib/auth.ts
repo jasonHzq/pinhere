@@ -1,7 +1,9 @@
 import type { Tokens } from "@/types";
 
 const BASE_URL = import.meta.env.VITE_PINHERE_URL ?? "https://pinhere.dev";
-const TOKEN_KEY = "pinhere_tokens";
+export const TOKEN_KEY = "pinhere_tokens";
+export const AUTH_PENDING_KEY = "pinhere_auth_pending";
+export const AUTH_ERROR_KEY = "pinhere_auth_error";
 
 function base64Url(bytes: Uint8Array) {
   let binary = "";
@@ -16,6 +18,15 @@ async function challenge(verifier: string) {
 export async function readTokens() {
   const value = await chrome.storage.local.get(TOKEN_KEY);
   return (value[TOKEN_KEY] as Tokens | undefined) ?? null;
+}
+
+export async function readAuthorizationStatus() {
+  const value = await chrome.storage.local.get([TOKEN_KEY, AUTH_PENDING_KEY, AUTH_ERROR_KEY]);
+  return {
+    tokens: (value[TOKEN_KEY] as Tokens | undefined) ?? null,
+    pending: value[AUTH_PENDING_KEY] === true,
+    error: typeof value[AUTH_ERROR_KEY] === "string" ? value[AUTH_ERROR_KEY] : ""
+  };
 }
 
 async function saveTokens(value: { accessToken: string; refreshToken: string; expiresIn: number }) {
@@ -69,5 +80,5 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
   return response;
 }
 
-export async function logout() { await chrome.storage.local.remove(TOKEN_KEY); }
+export async function logout() { await chrome.storage.local.remove([TOKEN_KEY, AUTH_PENDING_KEY, AUTH_ERROR_KEY]); }
 export { BASE_URL };

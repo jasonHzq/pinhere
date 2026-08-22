@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, Check, Clipboard, Crosshair, ExternalLink, LoaderCircle, LogOut, MousePointer2, RotateCcw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Check, Clipboard, Crosshair, ExternalLink, LoaderCircle, LogOut, MousePointer2, RotateCcw } from "lucide-react";
 import { Button, Card, Input, Textarea } from "@/components/ui";
 import { Cropper } from "@/components/cropper";
-import { apiFetch, BASE_URL, login, logout, readTokens } from "@/lib/auth";
+import { apiFetch, AUTH_ERROR_KEY, AUTH_PENDING_KEY, BASE_URL, login, logout, readAuthorizationStatus, TOKEN_KEY } from "@/lib/auth";
 import { clearPendingCapture, readPendingCapture } from "@/lib/capture";
 import { annotateScreenshot, cropAndCompress } from "@/lib/image";
 import type { Capture, Project, Rect } from "@/types";
@@ -33,17 +33,30 @@ export function App() {
     return true;
   }
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const tokens = await readTokens();
-        if (!tokens) { setPhase("signed_out"); return; }
-        setPhase((await resumePendingCapture()) ? "captured" : "ready");
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : "无法恢复已圈选的问题");
-        setPhase("ready");
+  async function restoreAuthorization() {
+    try {
+      const status = await readAuthorizationStatus();
+      setAuthorizing(status.pending);
+      if (!status.tokens) {
+        setError(status.error);
+        setPhase("signed_out");
+        return;
       }
-    })();
+      setError("");
+      setPhase((await resumePendingCapture()) ? "captured" : "ready");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "无法恢复已圈选的问题");
+      setPhase("ready");
+    }
+  }
+
+  useEffect(() => {
+    void restoreAuthorization();
+    const listener = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
+      if (areaName === "local" && [TOKEN_KEY, AUTH_PENDING_KEY, AUTH_ERROR_KEY].some((key) => key in changes)) void restoreAuthorization();
+    };
+    chrome.storage.onChanged.addListener(listener);
+    return () => chrome.storage.onChanged.removeListener(listener);
   }, []);
 
   async function authorize() {
@@ -79,7 +92,7 @@ export function App() {
 
   return <main className="pinhere-popup bg-[#fafafa]"><header className="flex items-center justify-between border-b border-[#e7e7e7] bg-white px-3 py-2.5"><Logo />{phase !== "signed_out" && phase !== "loading" && <button title="退出登录" className="focus-ring rounded-md p-1.5 text-[#727272] hover:bg-black/5" onClick={() => void signOut()}><LogOut size={16} /></button>}</header><div className="p-3">
     {phase === "loading" && <div className="grid min-h-[220px] place-items-center"><LoaderCircle className="animate-spin text-black" /></div>}
-    {phase === "signed_out" && <section className="signed-out rise"><div className="flex items-start gap-2.5"><div className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#151515] text-white"><ShieldCheck size={17} /></div><div><div className="font-mono text-[8px] font-bold uppercase tracking-[.16em] text-[#777]">Extension access</div><h1 className="mt-1 text-[19px] font-extrabold leading-none tracking-[-.045em]">连接，然后圈选</h1><p className="mt-1.5 text-[11px] leading-4 text-[#6a6a6a]">读取项目，创建缺陷并上传截图。</p></div></div><div className="mt-3 border-y border-[#e6e6e6] py-2 font-mono text-[9px] text-[#777]">授权在 Pinhere 完成 · 仅首次需要</div><Button className="mt-3 w-full" disabled={authorizing} onClick={() => void authorize()}>{authorizing ? <><LoaderCircle className="animate-spin" size={14} />正在打开授权页…</> : <>授权并登录 <ExternalLink size={14} /></>}</Button></section>}
+    {phase === "signed_out" && <section className="signed-out rise"><div><div className="font-mono text-[8px] font-bold uppercase tracking-[.16em] text-[#777]">Extension access</div><h1 className="mt-1 text-[19px] font-extrabold leading-none tracking-[-.045em]">连接，然后圈选</h1><p className="mt-1.5 text-[11px] leading-4 text-[#6a6a6a]">读取项目，创建缺陷并上传截图。</p></div><div className="mt-3 border-y border-[#e6e6e6] py-2 font-mono text-[9px] text-[#777]">授权在 Pinhere 完成 · 仅首次需要</div><Button className="mt-3 w-full" disabled={authorizing} onClick={() => void authorize()}>{authorizing ? <><LoaderCircle className="animate-spin" size={14} />正在完成授权…</> : <>授权并登录 <ExternalLink size={14} /></>}</Button></section>}
     {phase === "ready" && <section className="rise pt-0"><div className="mb-3 rounded-[12px] border border-[#1c1c1c] bg-[#151515] p-3.5 text-white shadow-[0_8px_20px_rgba(0,0,0,.12)]"><div className="mb-4 flex items-center justify-between"><span className="font-mono text-[8px] uppercase tracking-[.16em] text-white/45">DOM CAPTURE / READY</span><span className="size-1.5 animate-pulse rounded-full bg-white" /></div><div className="flex items-start gap-2.5"><MousePointer2 size={20} className="mt-0.5 shrink-0 text-white" /><div><h1 className="text-[19px] font-extrabold leading-tight tracking-[-.04em]">选择页面上的问题</h1><p className="mt-1 text-[11px] leading-4 text-white/60">圈选后面板收起；再次点击图标继续填写。</p></div></div></div><Button className="w-full" onClick={() => void startCapture()}><Crosshair size={16} />圈选页面问题</Button><div className="mt-2.5 text-center font-mono text-[8px] leading-4 text-[#858585]">不支持 Chrome 内部页、iframe 与关闭的 Shadow DOM</div></section>}
     {(phase === "captured" || phase === "submitting") && capture && <form onSubmit={submit} className="rise space-y-5"><section><div className="mb-2 flex items-center justify-between"><span className="text-xs font-extrabold">截图裁剪</span><span className="font-mono text-[9px] text-[#8a8d86]">拖动重新框选</span></div><Cropper src={capture.screenshot} crop={capture.crop} onChange={(crop: Rect) => setCapture({ ...capture, crop })} /></section><Card className="p-4"><div className="font-mono text-[9px] uppercase tracking-[.14em] text-[#8a8d86]">Resolved project</div><div className="mt-1 text-sm font-extrabold">{capture.project.name}</div><div className="mt-2 truncate font-mono text-[9px] text-[#777a73]">{capture.pageUrl}</div></Card><label className="block text-xs font-extrabold">缺陷标题<Input className="mt-2" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：结算按钮点击后没有响应" maxLength={200} required /></label><label className="block text-xs font-extrabold">描述与修复目标<Textarea className="mt-2" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="说明当前表现、预期行为，以及完成修复的判断标准。" maxLength={20000} required /></label><div className="grid grid-cols-[auto_1fr] gap-2"><Button type="button" variant="outline" onClick={reset}><RotateCcw size={16} /></Button><Button disabled={phase === "submitting"}>{phase === "submitting" ? <><LoaderCircle size={16} className="animate-spin" />正在提交</> : "创建缺陷"}</Button></div></form>}
     {phase === "success" && <section className="rise pt-8"><div className="mb-7 grid size-16 place-items-center rounded-full bg-[#dff4e8] text-[#1d7a52]"><Check size={30} strokeWidth={2.5} /></div><div className="font-mono text-[10px] uppercase tracking-[.15em] text-[#1d7a52]">Issue created</div><h1 className="mt-3 text-3xl font-extrabold tracking-[-.05em]">缺陷已进入看板</h1><div className="mt-4 rounded-lg bg-[#ebe9e2] p-3 font-mono text-xs">{issueId}</div><div className="mt-7 space-y-2"><Button className="w-full" onClick={() => void copy()}>{copied ? <Check size={16} /> : <Clipboard size={16} />}{copied ? "已复制" : "复制修复 Prompt"}</Button><Button className="w-full" variant="outline" onClick={() => void chrome.tabs.create({ url: `${BASE_URL}/zh-CN/app/issues/${issueId}` })}>查看缺陷详情 <ExternalLink size={15} /></Button><Button className="w-full" variant="ghost" onClick={reset}>继续圈选</Button></div></section>}
