@@ -2,61 +2,36 @@ import { describe, expect, it, vi } from "vitest";
 import { captureAndOpenEditor } from "./editor";
 
 describe("captureAndOpenEditor", () => {
-  it("requests the editor before asynchronous capture work starts", async () => {
+  it("stores the capture before opening the editor popup", async () => {
     const calls: string[] = [];
 
     await captureAndOpenEditor(
-      async () => { calls.push("open-editor"); return true; },
       async () => { calls.push("store-capture"); },
-      async () => { calls.push("open-fallback"); }
+      async () => { calls.push("open-popup"); }
     );
 
-    expect(calls).toEqual(["open-editor", "store-capture"]);
+    expect(calls).toEqual(["store-capture", "open-popup"]);
   });
 
-  it("opens a popup fallback only after the capture is stored", async () => {
-    const calls: string[] = [];
-    const fallback = vi.fn(async () => { calls.push("open-fallback"); });
+  it("opens exactly one editor popup", async () => {
+    const openPopup = vi.fn(async () => undefined);
 
     await captureAndOpenEditor(
-      async () => { calls.push("open-editor"); return false; },
-      async () => { calls.push("store-capture"); },
-      fallback
+      async () => undefined,
+      openPopup
     );
 
-    expect(calls).toEqual(["open-editor", "store-capture", "open-fallback"]);
-    expect(fallback).toHaveBeenCalledOnce();
+    expect(openPopup).toHaveBeenCalledOnce();
   });
 
-  it("opens the popup fallback when Chrome leaves sidePanel.open pending", async () => {
-    vi.useFakeTimers();
-    const calls: string[] = [];
+  it("does not open an editor when the capture cannot be stored", async () => {
+    const openPopup = vi.fn(async () => undefined);
 
-    try {
-      const result = captureAndOpenEditor(
-        () => new Promise<boolean>(() => undefined),
-        async () => { calls.push("store-capture"); },
-        async () => { calls.push("open-fallback"); },
-        400
-      );
+    await expect(captureAndOpenEditor(
+      async () => { throw new Error("capture failed"); },
+      openPopup
+    )).rejects.toThrow("capture failed");
 
-      await vi.advanceTimersByTimeAsync(400);
-      await result;
-      expect(calls).toEqual(["store-capture", "open-fallback"]);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("opens the popup fallback when sidePanel.open rejects", async () => {
-    const calls: string[] = [];
-
-    await captureAndOpenEditor(
-      async () => { throw new Error("side panel unavailable"); },
-      async () => { calls.push("store-capture"); },
-      async () => { calls.push("open-fallback"); }
-    );
-
-    expect(calls).toEqual(["store-capture", "open-fallback"]);
+    expect(openPopup).not.toHaveBeenCalled();
   });
 });

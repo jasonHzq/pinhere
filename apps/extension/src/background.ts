@@ -7,11 +7,6 @@ import type { DomContext, PendingCapture, Tokens } from "@/types";
 
 let loginInFlight: Promise<Tokens | null> | null = null;
 
-// `openPanelOnActionClick` is persisted by Chrome. Explicitly reset it so an
-// upgrade from an older build still opens the toolbar popover on icon click;
-// the side panel is reserved for the editor after a DOM selection.
-void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => undefined);
-
 function completeLogin() {
   loginInFlight ??= (async () => {
     await chrome.storage.local.set({ [AUTH_PENDING_KEY]: true });
@@ -76,12 +71,7 @@ async function storeCapture(sender: chrome.runtime.MessageSender, dom: DomContex
   await chrome.action.setTitle({ tabId: tab.id, title: "已圈选问题，点击继续填写" });
 }
 
-function openCaptureEditor(tabId: number) {
-  if (typeof chrome.sidePanel?.open !== "function") return Promise.resolve(false);
-  return chrome.sidePanel.open({ tabId }).then(() => true, () => false);
-}
-
-async function openCaptureEditorFallback() {
+async function openCaptureEditorPopup() {
   await chrome.windows.create({
     url: chrome.runtime.getURL("popup.html"),
     type: "popup",
@@ -111,15 +101,14 @@ chrome.runtime.onMessage.addListener((message: { type?: string; dom?: DomContext
       return false;
     }
     void captureAndOpenEditor(
-      () => openCaptureEditor(tabId),
       () => storeCapture(sender, dom),
-      openCaptureEditorFallback
+      openCaptureEditorPopup
     ).then(
       () => sendResponse({ ok: true }),
       (error: unknown) => sendResponse({ ok: false, message: error instanceof Error ? error.message : "无法打开问题编辑器" })
     );
     // Keep the service worker and response channel alive until screenshot
-    // storage and the guaranteed editor fallback have both finished.
+    // storage and the editor popup have both finished.
     return true;
   }
   if (message.type === "pinhere/dom-picker-cancelled" && sender.tab?.id) {
