@@ -1,5 +1,5 @@
 {
-  "name": "@pinhere/cli",
+  "name": "pinhere",
   "version": "0.1.0",
   "description": "Pair local coding agents with Pinhere and process browser-reported issues.",
   "type": "module",
