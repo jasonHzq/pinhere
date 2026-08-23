@@ -7,7 +7,7 @@ import { PinhereApi } from "./api.js";
 import { configDir, readConfig, updateConfig, writeConfig, type AgentMode } from "./config.js";
 import { defaultAgentName, installService, runWorker, serviceAction } from "./service.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 const argv = process.argv.slice(2);
 const jsonMode = argv.includes("--json");
 const args = argv.filter((value) => value !== "--json");
@@ -137,4 +137,3 @@ main().catch((error) => {
   else process.stderr.write(`Error: ${message}\n`);
   process.exitCode = 1;
 });
-

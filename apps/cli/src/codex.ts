@@ -46,7 +46,7 @@ export class CodexHarness {
       for (const listener of this.exitListeners) listener(error);
       this.pending.clear(); this.listeners.clear(); this.exitListeners.clear(); this.process = undefined;
     });
-    await this.request("initialize", { clientInfo: { name: "pinhere", title: "Pinhere", version: "0.1.0" } });
+    await this.request("initialize", { clientInfo: { name: "pinhere", title: "Pinhere", version: "0.1.1" } });
     this.notify("initialized", {});
   }
 
