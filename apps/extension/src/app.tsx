@@ -9,6 +9,7 @@ import {
   ImageIcon,
   LoaderCircle,
   LogOut,
+  Maximize2,
   MousePointer2,
   RotateCcw,
   Sparkles
@@ -27,6 +28,12 @@ import {
 } from "@/lib/auth";
 import { clearPendingCapture, pendingCaptureBelongsToTab, PENDING_CAPTURE_KEY, readPendingCapture } from "@/lib/capture";
 import { annotateScreenshot, cropAndCompress } from "@/lib/image";
+import {
+  IMAGE_EDITOR_DRAFT_KEY,
+  IMAGE_EDITOR_RESULT_KEY,
+  imageEditorUrl,
+  readImageEditorResult
+} from "@/lib/image-editor";
 import type { Capture, Project, Rect } from "@/types";
 
 type Phase = "loading" | "signed_out" | "ready" | "captured" | "submitting" | "success";
@@ -64,6 +71,7 @@ export function App() {
   const [handoffPrompt, setHandoffPrompt] = useState("");
   const [copied, setCopied] = useState(false);
   const [authorizing, setAuthorizing] = useState(false);
+  const [imageEditorWindowId, setImageEditorWindowId] = useState<number | null>(null);
 
   async function resumePendingCapture() {
     const pending = await readPendingCapture();
@@ -118,6 +126,11 @@ export function App() {
     void restoreAuthorization();
     const listener = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
       if (areaName !== "local") return;
+      const imageEditorResult = readImageEditorResult(changes[IMAGE_EDITOR_RESULT_KEY]?.newValue);
+      if (imageEditorResult) {
+        setCapture((current) => current ? { ...current, crop: imageEditorResult.crop } : current);
+        void chrome.storage.local.remove([IMAGE_EDITOR_DRAFT_KEY, IMAGE_EDITOR_RESULT_KEY]);
+      }
       const authChanged = [TOKEN_KEY, AUTH_PENDING_KEY, AUTH_ERROR_KEY].some((key) => key in changes);
       const captureArrived = Boolean(changes[PENDING_CAPTURE_KEY]?.newValue);
       if (authChanged || captureArrived) void restoreAuthorization();
@@ -125,6 +138,17 @@ export function App() {
     chrome.storage.onChanged.addListener(listener);
     return () => chrome.storage.onChanged.removeListener(listener);
   }, []);
+
+  useEffect(() => {
+    if (imageEditorWindowId === null) return;
+    const listener = (windowId: number) => {
+      if (windowId !== imageEditorWindowId) return;
+      setImageEditorWindowId(null);
+      void chrome.storage.local.remove(IMAGE_EDITOR_DRAFT_KEY);
+    };
+    chrome.windows.onRemoved.addListener(listener);
+    return () => chrome.windows.onRemoved.removeListener(listener);
+  }, [imageEditorWindowId]);
 
   async function authorize() {
     if (authorizing) return;
@@ -150,6 +174,42 @@ export function App() {
       window.close();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "圈选失败");
+    }
+  }
+
+  async function openImageEditor() {
+    if (!capture || !initialCrop) return;
+    if (imageEditorWindowId !== null) {
+      try {
+        await chrome.windows.update(imageEditorWindowId, { focused: true });
+        return;
+      } catch {
+        setImageEditorWindowId(null);
+      }
+    }
+
+    const sessionId = crypto.randomUUID();
+    await chrome.storage.local.set({
+      [IMAGE_EDITOR_DRAFT_KEY]: {
+        sessionId,
+        screenshot: capture.screenshot,
+        crop: capture.crop,
+        initialCrop
+      }
+    });
+
+    try {
+      const editorWindow = await chrome.windows.create({
+        url: imageEditorUrl(sessionId),
+        type: "popup",
+        width: 1180,
+        height: 860,
+        focused: true
+      });
+      setImageEditorWindowId(editorWindow?.id ?? null);
+    } catch (reason) {
+      await chrome.storage.local.remove(IMAGE_EDITOR_DRAFT_KEY);
+      setError(reason instanceof Error ? reason.message : "无法打开图片编辑窗口");
     }
   }
 
@@ -305,16 +365,25 @@ export function App() {
             <section>
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-xs font-extrabold"><ImageIcon size={14} className="text-[#315efb]" />截图编辑</div>
-                <button
-                  type="button"
-                  className="focus-ring inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold text-[#697386] hover:bg-[#edf1f5]"
-                  onClick={() => initialCrop && setCapture({ ...capture, crop: initialCrop })}
-                >
-                  <RotateCcw size={11} />恢复选区
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="focus-ring inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-[#697386] hover:bg-[#edf1f5]"
+                    onClick={() => initialCrop && setCapture({ ...capture, crop: initialCrop })}
+                  >
+                    <RotateCcw size={11} />恢复选区
+                  </button>
+                  <button
+                    type="button"
+                    className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-[#c9d5ff] bg-[#edf2ff] px-2.5 py-1.5 text-[10px] font-extrabold text-[#315efb] transition-colors hover:border-[#9db1ff] hover:bg-[#e2e9ff]"
+                    onClick={() => void openImageEditor()}
+                  >
+                    <Maximize2 size={12} />{imageEditorWindowId === null ? "放大编辑" : "返回编辑窗口"}
+                  </button>
+                </div>
               </div>
               <Cropper src={capture.screenshot} crop={capture.crop} onChange={(crop) => setCapture({ ...capture, crop })} />
-              <p className="mt-2 text-[10px] leading-4 text-[#7d8795]">在图片上拖动即可重新框选，提交时只会上传当前选区。</p>
+              <p className="mt-2 text-[10px] leading-4 text-[#7d8795]">可直接拖动重新框选；需要看清细节时，点击“放大编辑”进入独立窗口。</p>
             </section>
 
             <Card className="p-3.5">
