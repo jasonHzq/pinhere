@@ -8,7 +8,7 @@ import { CodexHarness } from "./codex.js";
 import { configDir, readConfig, type Binding } from "./config.js";
 
 const execFileAsync = promisify(execFile);
-const VERSION = "0.1.1";
+const VERSION = "0.1.2";
 
 type Issue = {
   id: string; projectId: string; title: string; description: string; pageUrl: string;

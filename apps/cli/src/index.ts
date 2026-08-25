@@ -6,8 +6,9 @@ import { resolve, join } from "node:path";
 import { PinhereApi } from "./api.js";
 import { configDir, readConfig, updateConfig, writeConfig, type AgentMode } from "./config.js";
 import { defaultAgentName, installService, runWorker, serviceAction } from "./service.js";
+import { installPinhereSkill, type SkillAgent } from "./skill-install.js";
 
-const VERSION = "0.1.1";
+const VERSION = "0.1.2";
 const argv = process.argv.slice(2);
 const jsonMode = argv.includes("--json");
 const args = argv.filter((value) => value !== "--json");
@@ -69,10 +70,16 @@ async function issueGet(issueId: string) {
 
 async function main() {
   if (!args.length || has("help") || args[0] === "help") {
-    output(`Pinhere CLI ${VERSION}\n\nCommands:\n  auth login|status|logout\n  projects list\n  project bind <project-id> --path <repo>\n  issues list|get|claim|claim-next|heartbeat|complete|release\n  agent bind|status|run\n  agent service install|start|stop|status`);
+    output(`Pinhere CLI ${VERSION}\n\nCommands:\n  skill install [--agent auto|codex|standard] [--target <skills-root>]\n  auth login|status|logout\n  projects list\n  project bind <project-id> --path <repo>\n  issues list|get|claim|claim-next|heartbeat|complete|release\n  agent bind|status|run\n  agent service install|start|stop|status`);
     return;
   }
   if (args[0] === "--version" || args[0] === "version") { output(VERSION); return; }
+
+  if (args[0] === "skill" && args[1] === "install") {
+    const agent = (flag("agent") ?? "auto") as SkillAgent;
+    if (!["auto", "codex", "standard"].includes(agent)) throw new Error("--agent must be auto, codex, or standard");
+    output(await installPinhereSkill({ agent, skillsRoot: flag("target") })); return;
+  }
 
   if (args[0] === "auth" && args[1] === "login") return authLogin();
   if (args[0] === "auth" && args[1] === "status") {
