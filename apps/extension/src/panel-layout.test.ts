@@ -4,6 +4,7 @@ import captureEditorHtml from "../capture-editor.html?raw";
 import popupHtml from "../popup.html?raw";
 
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+const app = readFileSync(new URL("./app.tsx", import.meta.url), "utf8");
 const background = readFileSync(new URL("./background.ts", import.meta.url), "utf8");
 const editor = readFileSync(new URL("./lib/editor.ts", import.meta.url), "utf8");
 
@@ -24,5 +25,10 @@ describe("extension surface layout", () => {
     expect(editor).toContain("dialog.show()");
     expect(editor).not.toContain("dialog.showModal()");
     expect(editor).toContain("pointer-events: none");
+  });
+
+  it("does not make background readable-ID generation look blocking", () => {
+    expect(app).not.toContain("正在生成可读 ID");
+    expect(app).toContain("visibleIssueId &&");
   });
 });
