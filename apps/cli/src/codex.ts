@@ -1,9 +1,18 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import { createInterface as createPrompt } from "node:readline/promises";
+import { codexLaunchEnvironment, launchFromEnvironment, resolveCodexLaunch, type CodexLaunch } from "./codex-launch.js";
 import type { AgentMode } from "./config.js";
 
 type RpcResult = { id?: number; result?: unknown; error?: { message?: string }; method?: string; params?: Record<string, unknown> };
+type CodexTurn = { id?: string; status?: string; error?: { message?: string } };
+type CodexHarnessOptions = { turnPollIntervalMs?: number; turnTimeoutMs?: number };
+
+function terminalTurnError(turn: CodexTurn) {
+  if (turn.status === "failed") return new Error(turn.error?.message ?? "Codex turn failed");
+  if (turn.status === "interrupted") return new Error(turn.error?.message ?? "Codex turn was interrupted");
+  return undefined;
+}
 
 export function codexPolicy(mode: AgentMode) {
   if (mode === "yolo") return { approvalPolicy: "never", sandboxPolicy: { type: "dangerFullAccess" } } as const;
@@ -14,14 +23,23 @@ export function codexPolicy(mode: AgentMode) {
 export class CodexHarness {
   private process?: ChildProcessWithoutNullStreams;
   private nextId = 1;
-  private pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void }>();
+  private pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>();
   private listeners = new Set<(event: RpcResult) => void>();
   private exitListeners = new Set<(error: Error) => void>();
+  private completedTurns = new Map<string, { status?: string; error?: { message?: string } }>();
   private activeMode: AgentMode = "yolo";
+
+  constructor(
+    private readonly configuredLaunch?: CodexLaunch,
+    private readonly options: CodexHarnessOptions = {}
+  ) {}
 
   async start() {
     if (this.process) return;
-    const child = spawn(process.env.PINHERE_CODEX_BIN ?? "codex", ["app-server"], { stdio: ["pipe", "pipe", "pipe"] });
+    const launch = this.configuredLaunch ?? launchFromEnvironment() ?? await resolveCodexLaunch();
+    const child = spawn(launch.executable, ["app-server", "--listen", "stdio://"], {
+      env: codexLaunchEnvironment(launch), stdio: ["pipe", "pipe", "pipe"]
+    });
     this.process = child;
     createInterface({ input: child.stdout }).on("line", (line) => {
       let message: RpcResult;
@@ -30,23 +48,34 @@ export class CodexHarness {
         const waiter = this.pending.get(message.id);
         if (waiter) {
           this.pending.delete(message.id);
+          clearTimeout(waiter.timer);
           if (message.error) waiter.reject(new Error(message.error.message ?? "Codex App Server request failed"));
           else waiter.resolve(message.result);
         } else if (message.method) {
           void this.handleServerRequest(message);
         }
       }
+      if (message.method === "turn/completed") {
+        const turn = message.params?.turn as { id?: string; status?: string; error?: { message?: string } } | undefined;
+        if (turn?.id) this.completedTurns.set(turn.id, turn);
+      }
       if (message.method) for (const listener of this.listeners) listener(message);
     });
     let stderr = "";
     child.stderr.on("data", (chunk) => { stderr = `${stderr}${String(chunk)}`.slice(-8_000); });
+    const failProcess = (error: Error) => {
+      if (this.process !== child) return;
+      this.process = undefined;
+      for (const waiter of this.pending.values()) { clearTimeout(waiter.timer); waiter.reject(error); }
+      for (const listener of this.exitListeners) listener(error);
+      this.pending.clear(); this.listeners.clear(); this.exitListeners.clear();
+    };
+    child.on("error", (error) => failProcess(new Error(`Codex App Server failed to start: ${error.message}`)));
     child.on("exit", (code) => {
       const error = new Error(`Codex App Server exited (${code ?? "signal"})${stderr ? `: ${stderr.trim()}` : ""}`);
-      for (const waiter of this.pending.values()) waiter.reject(error);
-      for (const listener of this.exitListeners) listener(error);
-      this.pending.clear(); this.listeners.clear(); this.exitListeners.clear(); this.process = undefined;
+      failProcess(error);
     });
-    await this.request("initialize", { clientInfo: { name: "pinhere", title: "Pinhere", version: "0.1.2" } });
+    await this.request("initialize", { clientInfo: { name: "pinhere", title: "Pinhere", version: "0.2.4" } }, 10_000);
     this.notify("initialized", {});
   }
 
@@ -75,11 +104,24 @@ export class CodexHarness {
     this.process?.stdin.write(`${JSON.stringify({ method, params })}\n`);
   }
 
-  private request<T>(method: string, params: unknown): Promise<T> {
+  private request<T>(method: string, params: unknown, timeoutMs = 30_000): Promise<T> {
     if (!this.process) return Promise.reject(new Error("Codex App Server is not running"));
+    const child = this.process;
     const id = this.nextId++;
-    this.process.stdin.write(`${JSON.stringify({ method, id, params })}\n`);
-    return new Promise<T>((resolve, reject) => this.pending.set(id, { resolve, reject }));
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`Codex App Server ${method} timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+      timer.unref();
+      this.pending.set(id, { resolve, reject, timer });
+      child.stdin.write(`${JSON.stringify({ method, id, params })}\n`, (error) => {
+        if (!error) return;
+        const waiter = this.pending.get(id);
+        if (!waiter) return;
+        this.pending.delete(id); clearTimeout(waiter.timer); waiter.reject(error);
+      });
+    });
   }
 
   async createThread(cwd: string) {
@@ -94,30 +136,59 @@ export class CodexHarness {
       threadId, cwd, input: [{ type: "text", text: prompt }], ...codexPolicy(mode)
     });
     const turnId = result.turn.id;
+    const alreadyCompleted = this.completedTurns.get(turnId);
+    if (alreadyCompleted) {
+      this.completedTurns.delete(turnId);
+      const error = terminalTurnError(alreadyCompleted);
+      if (error) throw error;
+      return;
+    }
     return new Promise<void>((resolve, reject) => {
       let settled = false;
+      let pollInFlight = false;
       const finish = (error?: Error) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timeout);
+        clearInterval(pollTimer);
+        clearTimeout(timeoutTimer);
         this.listeners.delete(listener);
         this.exitListeners.delete(onExit);
         if (error) reject(error); else resolve();
       };
+      const observe = (turn: CodexTurn | undefined) => {
+        if (!turn || turn.id !== turnId || !["completed", "interrupted", "failed"].includes(turn.status ?? "")) return;
+        finish(terminalTurnError(turn));
+      };
       const listener = (event: RpcResult) => {
         if (event.method !== "turn/completed") return;
-        const turn = event.params?.turn as { id?: string; status?: string; error?: { message?: string } } | undefined;
-        if (turn?.id !== turnId) return;
-        if (turn.error || turn.status === "failed") finish(new Error(turn.error?.message ?? "Codex turn failed"));
-        else finish();
+        observe(event.params?.turn as CodexTurn | undefined);
       };
       const onExit = (error: Error) => finish(error);
-      const timeout = setTimeout(() => finish(new Error("Codex turn timed out after 2 hours")), 2 * 60 * 60_000);
-      timeout.unref();
+      const pollTimer = setInterval(() => {
+        if (pollInFlight || settled) return;
+        pollInFlight = true;
+        void this.request<{ thread?: { turns?: CodexTurn[] } }>(
+          "thread/read",
+          { threadId, includeTurns: true },
+          10_000
+        ).then((read) => observe(read.thread?.turns?.find((turn) => turn.id === turnId)))
+          .catch(() => undefined)
+          .finally(() => { pollInFlight = false; });
+      }, this.options.turnPollIntervalMs ?? 5_000);
+      pollTimer.unref();
+      const timeoutMs = this.options.turnTimeoutMs ?? 2 * 60 * 60_000;
+      const timeoutTimer = setTimeout(() => finish(new Error(`Codex turn timed out after ${Math.round(timeoutMs / 60_000)} minutes`)), timeoutMs);
+      timeoutTimer.unref();
       this.listeners.add(listener);
       this.exitListeners.add(onExit);
     });
   }
 
-  close() { this.process?.kill(); this.process = undefined; }
+  close() {
+    const child = this.process;
+    this.process = undefined;
+    child?.kill();
+    for (const waiter of this.pending.values()) { clearTimeout(waiter.timer); waiter.reject(new Error("Codex App Server closed")); }
+    this.pending.clear(); this.listeners.clear(); this.exitListeners.clear(); this.completedTurns.clear();
+  }
 }

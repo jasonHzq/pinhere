@@ -67,6 +67,9 @@ export function ImageEditorApp() {
   }
 
   const selectedSize = `${Math.round(crop.width)} × ${Math.round(crop.height)} px`;
+  const hasPendingSelection = ["x", "y", "width", "height"].some(
+    (key) => crop[key as keyof Rect] !== draft.crop[key as keyof Rect]
+  );
 
   return (
     <main className="image-editor-shell flex min-h-screen flex-col">
@@ -83,10 +86,11 @@ export function ImageEditorApp() {
 
       <div className="image-editor-toolbar">
         <div>
-          <div className="text-xs font-extrabold">拖动图片，重新框选需要提交的区域</div>
-          <div className="mt-1 text-[11px] text-[#7a8494]">当前选区 {selectedSize}</div>
+          <div className="text-xs font-extrabold">拖动图片，用红框重新选择需要提交的区域</div>
+          <div className="mt-1 text-[11px] text-[#7a8494]">当前红框 {selectedSize} · 未应用前可随时取消</div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
+          <button type="button" className="editor-tool-button editor-tool-button-danger" disabled={!hasPendingSelection} onClick={() => setCrop(draft.crop)}><X size={14} />取消本次框选</button>
           <button type="button" className="editor-tool-button" onClick={() => setCrop(draft.initialCrop)}><RotateCcw size={14} />恢复初始选区</button>
           <div className="zoom-control" aria-label="图片缩放">
             <button type="button" aria-label="缩小图片" onClick={() => setZoom((value) => Math.max(MIN_ZOOM, value - 25))}><Minus size={14} /></button>
@@ -105,6 +109,7 @@ export function ImageEditorApp() {
             onChange={setCrop}
             className="image-editor-cropper"
             imageAlt="放大的缺陷截图，可拖动重新框选"
+            selectionTone="danger"
             style={{ width: `${zoom}%` }}
           />
         </div>
@@ -113,7 +118,7 @@ export function ImageEditorApp() {
       <footer className="image-editor-footer">
         <div className="hidden text-[11px] leading-5 text-[#7a8494] sm:block">只有选区会回到缺陷表单；标题和描述保持不变。</div>
         <div className="ml-auto flex items-center gap-2">
-          <Button type="button" variant="outline" onClick={closeWindow}>取消</Button>
+          <Button type="button" variant="outline" onClick={closeWindow}>取消编辑</Button>
           <Button type="button" onClick={() => void applyCrop()}><Check size={16} />应用选区</Button>
         </div>
       </footer>

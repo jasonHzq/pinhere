@@ -5,6 +5,7 @@ const variants = {
   open: "border-[#cbd2d8] bg-[#f0f3f5] text-[#5e6973]",
   in_progress: "border-[#b9c8d3] bg-[#edf4f8] text-[#3e5d75]",
   done: "border-[#b9ced0] bg-[#eaf2f2] text-[#3f676b]",
+  failed: "border-[#e4b9bc] bg-[#faecec] text-[#9a3f46]",
   neutral: "border-[#d5dce2] bg-[#eef1f4] text-[#606a73]"
 };
 

@@ -20,27 +20,25 @@ import {
   webhooks
 } from "~/db/schema";
 import { createId, createSecret, digestSecret, resourceEtag } from "~/lib/ids.server";
+import { assignReadableIssueId, findOwnedIssueByIdentifier, pendingIssueIdentifier, publicIssue } from "~/lib/issue-readable-id.server";
 import { claimExpiry } from "~/lib/lease.server";
+import { claimedAgentSummary } from "~/lib/agent-health";
 import { repairPrompt } from "~/lib/repair-prompt";
 import { issueExtensionAuthorizationCode, parseExtensionRedirectUri } from "~/lib/extension-oauth.server";
 import { normalizeOrigin, sanitizePageUrl } from "~/lib/origin";
 import { getPrincipal, hasScope, type Principal } from "~/lib/principal.server";
 import { assertPublicWebhookUrl, deliverWebhook, newWebhookSecret, processWebhookWork } from "~/lib/webhook.server";
 import { ApiError, errorResponse } from "./errors.server";
-import { expectedVersion, findIdempotentResponse, jsonBody, saveIdempotentResponse } from "./validation.server";
+import { attachmentInput, issueInput, issueUpdateInput } from "./issue-input.server";
+import { expectedVersion, findIdempotentResponse, jsonBody, saveIdempotentResponse, versionPrecondition } from "./validation.server";
 export { IMPLEMENTED_OPERATION_IDS } from "./operations";
 
 const app = new Hono();
-const projectInput = z.object({ name: z.string().trim().min(1).max(100), description: z.string().max(1_000).default(""), origins: z.array(z.string()).max(50).default([]) });
-const domSchema = z.object({
-  cssSelector: z.string().max(2_000), xpath: z.string().max(2_000), tagName: z.string().max(100),
-  attributes: z.record(z.string(), z.string().max(2_000)), text: z.string().max(5_000), outerHTML: z.string().max(30_000),
-  viewport: z.object({ width: z.number().positive(), height: z.number().positive(), devicePixelRatio: z.number().positive().max(8) }),
-  boundingRect: z.object({ x: z.number(), y: z.number(), width: z.number().nonnegative(), height: z.number().nonnegative() })
-});
-const issueInput = z.object({
-  projectId: z.string(), title: z.string().trim().min(1).max(200), description: z.string().trim().min(1).max(20_000),
-  pageUrl: z.string().url(), dom: domSchema, attachmentId: z.string().optional(), source: z.enum(["extension", "web", "api"]).default("extension")
+const projectInput = z.object({
+  name: z.string().trim().min(1).max(100),
+  identifier: z.string().trim().min(3).max(32).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Project identifier must use lowercase letters, numbers, and single dashes"),
+  description: z.string().max(1_000).default(""),
+  origins: z.array(z.string()).max(50).default([])
 });
 const pairingInput = z.object({
   name: z.string().trim().min(1).max(100),
@@ -91,7 +89,7 @@ async function ownedProject(userId: string, projectId: string) {
 }
 
 async function ownedIssue(userId: string, issueId: string) {
-  const [issue] = await getDatabase().select().from(issues).where(and(eq(issues.id, issueId), eq(issues.userId, userId))).limit(1);
+  const issue = await findOwnedIssueByIdentifier(userId, issueId);
   if (!issue) throw new ApiError("issue_not_found", "Issue was not found", 404);
   return issue;
 }
@@ -138,14 +136,14 @@ app.post("/api/v1/projects", async (c) => {
   try {
     if (normalized.length) {
       await db.batch([
-        db.insert(projects).values({ id, userId: p.userId, name: body.name, description: body.description }),
+        db.insert(projects).values({ id, userId: p.userId, name: body.name, identifier: body.identifier, description: body.description }),
         db.insert(projectOrigins).values(normalized.map((origin) => ({ projectId: id, userId: p.userId, origin })))
       ]);
     } else {
-      await db.insert(projects).values({ id, userId: p.userId, name: body.name, description: body.description });
+      await db.insert(projects).values({ id, userId: p.userId, name: body.name, identifier: body.identifier, description: body.description });
     }
   } catch (error) {
-    if (isUniqueViolation(error)) throw new ApiError("origin_already_assigned", "One of these origins already belongs to another project", 409);
+    if (isUniqueViolation(error)) throw new ApiError("project_identifier_or_origin_taken", "This project identifier or website is already assigned", 409);
     throw error;
   }
   const response = { data: await ownedProject(p.userId, id) };
@@ -163,9 +161,9 @@ app.get("/api/v1/projects/:projectId", async (c) => {
 app.patch("/api/v1/projects/:projectId", async (c) => {
   const p = await principal(c.req.raw, "projects:write");
   const project = await ownedProject(p.userId, c.req.param("projectId"));
-  const body = await jsonBody(c.req.raw, projectInput.partial().omit({ origins: true }));
+  const body = await jsonBody(c.req.raw, projectInput.partial().omit({ origins: true, identifier: true }));
   const key = c.req.header("idempotency-key") ?? null;
-  const requestValue = { projectId: project.id, ifMatch: c.req.header("if-match"), ...body };
+  const requestValue = { projectId: project.id, ifMatch: versionPrecondition(c.req.raw), ...body };
   const replay = await findIdempotentResponse(p.userId, "updateProject", key, requestValue);
   if (replay) return replay;
   expectedVersion(c.req.raw, project.version);
@@ -244,8 +242,15 @@ app.get("/api/v1/issues", async (c) => {
   if (projectId) conditions.push(eq(issues.projectId, projectId));
   if (cursor) conditions.push(lt(issues.createdAt, cursor));
   if (updatedAfter) conditions.push(gt(issues.updatedAt, updatedAfter));
-  const rows = await getDatabase().select().from(issues).where(and(...conditions)).orderBy(desc(issues.createdAt)).limit(limit + 1);
-  const page = rows.slice(0, limit);
+  const rows = await getDatabase().select({
+    issue: issues,
+    claimedAgent: { id: agentInstances.id, name: agentInstances.name, lastSeenAt: agentInstances.lastSeenAt }
+  }).from(issues).leftJoin(agentInstances, and(eq(issues.claimedByTokenId, agentInstances.tokenId), eq(agentInstances.userId, p.userId))).where(and(...conditions)).orderBy(desc(issues.createdAt)).limit(limit + 1);
+  const capturedAt = Date.now();
+  const page = rows.slice(0, limit).map((row) => ({
+    ...publicIssue(row.issue),
+    claimedAgent: row.claimedAgent ? claimedAgentSummary(row.claimedAgent, capturedAt) : null
+  }));
   const response = { data: page, meta: { nextCursor: nextCursor(page.at(-1)?.createdAt, rows.length > limit) } };
   const tag = `\"${createHash("sha256").update(JSON.stringify(response)).digest("base64url")}\"`;
   if (c.req.header("if-none-match") === tag) return new Response(null, { status: 304, headers: { ETag: tag } });
@@ -258,85 +263,146 @@ app.post("/api/v1/issues", async (c) => {
   const key = c.req.header("idempotency-key") ?? null;
   const replay = await findIdempotentResponse(p.userId, "createIssue", key, body);
   if (replay) return replay;
-  await ownedProject(p.userId, body.projectId);
   const pageUrl = sanitizePageUrl(body.pageUrl);
   const origin = normalizeOrigin(pageUrl);
-  const [assigned] = await getDatabase().select().from(projectOrigins).where(and(
-    eq(projectOrigins.projectId, body.projectId), eq(projectOrigins.userId, p.userId), eq(projectOrigins.origin, origin)
-  )).limit(1);
+  const db = getDatabase();
+  const [project, [assigned], [attachment]] = await Promise.all([
+    ownedProject(p.userId, body.projectId),
+    db.select().from(projectOrigins).where(and(
+      eq(projectOrigins.projectId, body.projectId), eq(projectOrigins.userId, p.userId), eq(projectOrigins.origin, origin)
+    )).limit(1),
+    body.attachmentId
+      ? db.select().from(attachments).where(and(eq(attachments.id, body.attachmentId), eq(attachments.userId, p.userId), isNull(attachments.issueId))).limit(1)
+      : Promise.resolve([])
+  ]);
   if (!assigned) throw new ApiError("origin_not_assigned", "The page origin is not assigned to this project", 409);
-  if (body.attachmentId) {
-    const [attachment] = await getDatabase().select().from(attachments).where(and(eq(attachments.id, body.attachmentId), eq(attachments.userId, p.userId), isNull(attachments.issueId))).limit(1);
-    if (!attachment) throw new ApiError("attachment_not_found", "Attachment was not found or is already attached", 404);
+  if (body.attachmentId && !attachment) throw new ApiError("attachment_not_found", "Attachment was not found or is already attached", 404);
+  if (body.screenshot && !hasScope(p, "attachments:write")) throw new ApiError("insufficient_scope", "Missing scope: attachments:write", 403);
+
+  let inlineAttachment: typeof attachments.$inferSelect | undefined;
+  if (body.screenshot) {
+    const bytes = Buffer.from(body.screenshot.base64.replace(/^data:[^;]+;base64,/, ""), "base64");
+    if (bytes.byteLength > 2 * 1024 * 1024) throw new ApiError("attachment_too_large", "Screenshot exceeds the 2 MiB limit", 413);
+    const attachmentId = createId("att");
+    const fileName = body.screenshot.fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const pathname = `screenshots/${p.userId}/${attachmentId}/${fileName}`;
+    const blob = process.env.BLOB_READ_WRITE_TOKEN
+      ? await put(pathname, bytes, { access: "private", contentType: body.screenshot.contentType, addRandomSuffix: false })
+      : { url: `data:${body.screenshot.contentType};base64,${bytes.toString("base64")}`, pathname };
+    try {
+      [inlineAttachment] = await db.insert(attachments).values({
+        id: attachmentId,
+        userId: p.userId,
+        blobUrl: blob.url,
+        pathname,
+        fileName: body.screenshot.fileName,
+        contentType: body.screenshot.contentType,
+        byteSize: bytes.byteLength
+      }).returning();
+    } catch (error) {
+      if (process.env.BLOB_READ_WRITE_TOKEN) background(del(blob.url));
+      throw error;
+    }
   }
+
+  const attachmentId = body.attachmentId ?? inlineAttachment?.id;
   const id = createId("iss");
+  const readableId = pendingIssueIdentifier(project, id);
   const eventId = createId("evt");
   const webhookEventId = createId("whe");
-  const db = getDatabase();
   const webhookPayload = {
-    eventId: webhookEventId, projectId: body.projectId, issueId: id, createdAt: new Date().toISOString(),
-    prompt: repairPrompt(id)
+    eventId: webhookEventId, projectId: body.projectId, issueId: readableId, createdAt: new Date().toISOString(),
+    prompt: repairPrompt(readableId)
   };
-  if (body.attachmentId) {
-    const result = await db.execute(sql`
+  let issue: typeof issues.$inferSelect;
+  if (attachmentId) {
+    let result: Awaited<ReturnType<typeof db.execute>>;
+    try {
+      result = await db.execute(sql`
       with bound_attachment as (
         update attachment
         set "issueId" = ${id}
-        where id = ${body.attachmentId} and "userId" = ${p.userId} and "issueId" is null
+        where id = ${attachmentId} and "userId" = ${p.userId} and "issueId" is null
         returning id
       ),
       created_issue as (
-        insert into issue ("id", "userId", "projectId", title, description, "pageUrl", dom, source, "attachmentId")
-        select ${id}, ${p.userId}, ${body.projectId}, ${body.title}, ${body.description}, ${pageUrl},
-          ${JSON.stringify(body.dom)}::jsonb, ${body.source}::issue_source, ${body.attachmentId}
+        insert into issue ("id", "readableId", "readableIdStatus", "userId", "projectId", title, description, "pageUrl", dom, source, "attachmentId")
+        select ${id}, ${readableId}, 'pending'::issue_readable_id_status, ${p.userId}, ${body.projectId}, ${body.title}, ${body.description}, ${pageUrl},
+          ${JSON.stringify(body.dom)}::jsonb, ${body.source}::issue_source, ${attachmentId}
         where exists (select 1 from bound_attachment)
-        returning id
+        returning *
       ),
       created_event as (
         insert into "issue_event" ("id", "issueId", "userId", "actorType", "actorId", type, data)
         select ${eventId}, id, ${p.userId}, ${p.actorType}, ${p.actorId ?? null}, 'issue.created', '{}'::jsonb
         from created_issue
+      ),
+      created_outbox as (
+        insert into "outbox_event" ("id", "userId", "aggregateId", type, payload)
+        select ${webhookEventId}, ${p.userId}, id, 'issue.created', ${JSON.stringify(webhookPayload)}::jsonb
+        from created_issue
+        returning "aggregateId"
       )
-      insert into "outbox_event" ("id", "userId", "aggregateId", type, payload)
-      select ${webhookEventId}, ${p.userId}, id, 'issue.created', ${JSON.stringify(webhookPayload)}::jsonb
+      select created_issue.*
       from created_issue
-      returning "aggregateId"
-    `);
-    const created = (result as unknown as { rows?: Array<{ aggregateId: string }> }).rows?.[0] ?? (result as unknown as Array<{ aggregateId: string }>)[0];
-    if (!created) throw new ApiError("attachment_already_used", "Attachment is already attached to another issue", 409);
+      inner join created_outbox on created_outbox."aggregateId" = created_issue.id
+      `);
+    } catch (error) {
+      if (inlineAttachment) {
+        await db.delete(attachments).where(eq(attachments.id, inlineAttachment.id));
+        if (process.env.BLOB_READ_WRITE_TOKEN) background(del(inlineAttachment.blobUrl));
+      }
+      throw error;
+    }
+    const created = (result as unknown as { rows?: Array<typeof issues.$inferSelect> }).rows?.[0]
+      ?? (result as unknown as Array<typeof issues.$inferSelect>)[0];
+    if (!created) {
+      if (inlineAttachment) {
+        await db.delete(attachments).where(eq(attachments.id, inlineAttachment.id));
+        if (process.env.BLOB_READ_WRITE_TOKEN) background(del(inlineAttachment.blobUrl));
+      }
+      throw new ApiError("attachment_already_used", "Attachment is already attached to another issue", 409);
+    }
+    issue = created;
   } else {
     await db.batch([
-      db.insert(issues).values({ ...body, id, userId: p.userId, pageUrl }),
+      db.insert(issues).values({
+        id, readableId, readableIdStatus: "pending", userId: p.userId,
+        projectId: body.projectId, title: body.title, description: body.description,
+        pageUrl, dom: body.dom, source: body.source
+      }),
       db.insert(issueEvents).values({ id: eventId, issueId: id, userId: p.userId, actorType: p.actorType, actorId: p.actorId, type: "issue.created", data: {} }),
       db.insert(outboxEvents).values({ id: webhookEventId, userId: p.userId, aggregateId: id, type: "issue.created", payload: webhookPayload })
     ]);
+    issue = await ownedIssue(p.userId, id);
   }
-  const issue = await ownedIssue(p.userId, id);
-  const response = { data: { ...issue, handoffPrompt: repairPrompt(issue.id) } };
+  const exposedIssue = publicIssue(issue);
+  const response = { data: { ...exposedIssue, handoffPrompt: repairPrompt(exposedIssue.id) } };
   await saveIdempotentResponse(p.userId, "createIssue", key, body, 201, response);
-  background(processWebhookWork());
+  background(assignReadableIssueId(issue.id).then(() => processWebhookWork()));
   return Response.json(response, { status: 201, headers: { ETag: resourceEtag(issue.version) } });
 });
 
 app.get("/api/v1/issues/:issueId", async (c) => {
   const p = await principal(c.req.raw, "issues:read");
   const issue = await ownedIssue(p.userId, c.req.param("issueId"));
-  return data({ ...issue, screenshotUrl: issue.attachmentId ? `/api/v1/attachments/${issue.attachmentId}` : null, handoffPrompt: repairPrompt(issue.id) }, 200, { ETag: resourceEtag(issue.version) });
+  const exposedIssue = publicIssue(issue);
+  return data({ ...exposedIssue, screenshotUrl: issue.attachmentId ? `/api/v1/attachments/${issue.attachmentId}` : null, handoffPrompt: repairPrompt(exposedIssue.id) }, 200, { ETag: resourceEtag(issue.version) });
 });
 
 app.patch("/api/v1/issues/:issueId", async (c) => {
   const p = await principal(c.req.raw, "issues:write");
   const issue = await ownedIssue(p.userId, c.req.param("issueId"));
-  const body = await jsonBody(c.req.raw, issueInput.pick({ title: true, description: true }).partial());
+  const body = await jsonBody(c.req.raw, issueUpdateInput);
   const key = c.req.header("idempotency-key") ?? null;
-  const requestValue = { issueId: issue.id, ifMatch: c.req.header("if-match"), ...body };
+  const requestValue = { issueId: issue.id, ifMatch: versionPrecondition(c.req.raw), ...body };
   const replay = await findIdempotentResponse(p.userId, "updateIssue", key, requestValue);
   if (replay) return replay;
   expectedVersion(c.req.raw, issue.version);
   const [updated] = await getDatabase().update(issues).set({ ...body, updatedAt: new Date(), version: issue.version + 1 }).where(and(eq(issues.id, issue.id), eq(issues.version, issue.version))).returning();
   if (!updated) throw new ApiError("version_conflict", "The issue changed; reload it and try again", 412);
   await addIssueEvent(issue.id, p, "issue.updated", body);
-  const response = { data: updated };
+  const response = { data: publicIssue(updated!) };
   await saveIdempotentResponse(p.userId, "updateIssue", key, requestValue, 200, response);
   return Response.json(response, { headers: { ETag: resourceEtag(updated!.version) } });
 });
@@ -356,23 +422,24 @@ app.get("/api/v1/issues/:issueId/events", async (c) => {
   const p = await principal(c.req.raw, "issues:read");
   const issue = await ownedIssue(p.userId, c.req.param("issueId"));
   const rows = await getDatabase().select().from(issueEvents).where(eq(issueEvents.issueId, issue.id)).orderBy(asc(issueEvents.createdAt));
-  return data(rows);
+  const exposedId = publicIssue(issue).id;
+  return data(rows.map((event) => ({ ...event, issueId: exposedId })));
 });
 
 async function claimById(issueId: string, p: Principal) {
+  const issue = await ownedIssue(p.userId, issueId);
   const [claimed] = await getDatabase().update(issues).set({
     status: "in_progress", claimedByTokenId: p.actorId, claimedAt: new Date(), claimExpiresAt: claimExpiry(), updatedAt: new Date(), version: sql`${issues.version} + 1`
-  }).where(and(eq(issues.id, issueId), eq(issues.userId, p.userId), or(
+  }).where(and(eq(issues.id, issue.id), eq(issues.userId, p.userId), or(
     eq(issues.status, "open"),
     and(eq(issues.status, "in_progress"), eq(issues.claimedByTokenId, p.actorId)),
     and(eq(issues.status, "in_progress"), lt(issues.claimExpiresAt, new Date()))
   ))).returning();
   if (!claimed) {
-    await ownedIssue(p.userId, issueId);
     throw new ApiError("issue_already_claimed", "Issue is already being processed", 409);
   }
-  await addIssueEvent(issueId, p, "issue.claimed");
-  return claimed;
+  await addIssueEvent(issue.id, p, "issue.claimed");
+  return publicIssue(claimed);
 }
 
 app.post("/api/v1/issues/:issueId/claim", async (c) => {
@@ -396,7 +463,7 @@ app.post("/api/v1/issues/:issueId/heartbeat", async (c) => {
   }).where(and(eq(issues.id, issue.id), eq(issues.status, "in_progress"), eq(issues.version, issue.version))).returning();
   if (!updated) throw new ApiError("issue_state_conflict", "The issue state changed; reload it and try again", 409);
   await addIssueEvent(issue.id, p, "issue.claim_renewed", { claimExpiresAt: updated.claimExpiresAt?.toISOString() });
-  return data(updated);
+  return data(publicIssue(updated));
 });
 
 app.post("/api/v1/issues/claim-next", async (c) => {
@@ -411,6 +478,13 @@ app.post("/api/v1/issues/claim-next", async (c) => {
       select id from issue
       where "userId" = ${p.userId} and "projectId" = ${body.projectId}
         and (status = 'open' or (status = 'in_progress' and "claimExpiresAt" < now()))
+        and not exists (
+          select 1 from issue_event recent_failure
+          where recent_failure."issueId" = issue.id
+            and recent_failure."actorId" = ${p.actorId}
+            and recent_failure.type = 'issue.agent_failed'
+            and recent_failure."createdAt" > now() - interval '15 minutes'
+        )
       order by "createdAt" asc
       for update skip locked
       limit 1
@@ -421,14 +495,14 @@ app.post("/api/v1/issues/claim-next", async (c) => {
     from candidate where issue.id = candidate.id
     returning issue.*
   `);
-  const claimed = (result as unknown as { rows: Array<{ id: string }> }).rows?.[0] ?? (result as unknown as Array<{ id: string }>)[0];
+  const claimed = (result as unknown as { rows: Array<typeof issues.$inferSelect> }).rows?.[0] ?? (result as unknown as Array<typeof issues.$inferSelect>)[0];
   if (!claimed) {
     const response = { data: { issue: null } };
     await saveIdempotentResponse(p.userId, "claimNextIssue", key, body, 200, response);
     return Response.json(response);
   }
   await addIssueEvent(claimed.id, p, "issue.claimed");
-  const response = { data: { issue: claimed } };
+  const response = { data: { issue: publicIssue(claimed) } };
   await saveIdempotentResponse(p.userId, "claimNextIssue", key, body, 200, response);
   return Response.json(response);
 });
@@ -448,7 +522,7 @@ async function stateChange(p: Principal, issueId: string, target: "open" | "done
   }).where(and(eq(issues.id, issue.id), eq(issues.status, "in_progress"), eq(issues.version, issue.version))).returning();
   if (!updated) throw new ApiError("issue_state_conflict", "The issue state changed; reload it and try again", 409);
   await addIssueEvent(issue.id, p, eventType, summary ? { summary } : {});
-  return updated;
+  return publicIssue(updated);
 }
 
 app.post("/api/v1/issues/:issueId/release", async (c) => {
@@ -486,14 +560,14 @@ app.post("/api/v1/issues/:issueId/reopen", async (c) => {
   const [updated] = await getDatabase().update(issues).set({ status: "open", claimedByTokenId: null, claimedAt: null, claimExpiresAt: null, completedAt: null, completionSummary: null, updatedAt: new Date(), version: issue.version + 1 }).where(and(eq(issues.id, issue.id), eq(issues.status, "done"), eq(issues.version, issue.version))).returning();
   if (!updated) throw new ApiError("issue_state_conflict", "The issue state changed; reload it and try again", 409);
   await addIssueEvent(issue.id, p, "issue.reopened");
-  const response = { data: updated };
+  const response = { data: publicIssue(updated) };
   await saveIdempotentResponse(p.userId, "reopenIssue", key, requestValue, 200, response);
   return Response.json(response);
 });
 
 app.post("/api/v1/attachments", async (c) => {
   const p = await principal(c.req.raw, "attachments:write");
-  const body = await jsonBody(c.req.raw, z.object({ fileName: z.string().max(200), contentType: z.enum(["image/png", "image/jpeg", "image/webp"]), base64: z.string() }));
+  const body = await jsonBody(c.req.raw, attachmentInput);
   const key = c.req.header("idempotency-key") ?? null;
   const replay = await findIdempotentResponse(p.userId, "createAttachment", key, body);
   if (replay) return replay;
@@ -613,7 +687,7 @@ app.post("/api/v1/agent-runs", async (c) => {
     id: createId("run"), userId: p.userId, issueId: issue.id, agentInstanceId: agent.id, harness: body.harness, status: "running", startedAt: new Date()
   }).returning();
   await addIssueEvent(issue.id, p, "issue.agent_started", { runId: run!.id, harness: body.harness });
-  return data(run, 201);
+  return data({ ...run, issueId: publicIssue(issue).id }, 201);
 });
 
 app.patch("/api/v1/agent-runs/:runId", async (c) => {
@@ -630,7 +704,8 @@ app.patch("/api/v1/agent-runs/:runId", async (c) => {
   }).where(and(eq(agentRuns.id, c.req.param("runId")), eq(agentRuns.userId, p.userId), eq(agentRuns.agentInstanceId, agent.id))).returning();
   if (!updated) throw new ApiError("agent_run_not_found", "Agent run was not found", 404);
   if (body.status === "waiting" || body.status === "failed") await addIssueEvent(updated.issueId, p, body.status === "waiting" ? "issue.agent_waiting" : "issue.agent_failed", { runId: updated.id, error: body.error });
-  return data(updated);
+  const issue = await ownedIssue(p.userId, updated.issueId);
+  return data({ ...updated, issueId: publicIssue(issue).id });
 });
 
 app.get("/api/v1/tokens", async (c) => {
@@ -686,7 +761,7 @@ app.patch("/api/v1/webhooks/:webhookId", async (c) => {
   const hook = await ownedWebhook(p.userId, c.req.param("webhookId"));
   const body = await jsonBody(c.req.raw, z.object({ name: z.string().trim().min(1).max(100), url: z.string().url(), enabled: z.boolean() }).partial());
   const key = c.req.header("idempotency-key") ?? null;
-  const requestValue = { webhookId: hook.id, ifMatch: c.req.header("if-match"), ...body };
+  const requestValue = { webhookId: hook.id, ifMatch: versionPrecondition(c.req.raw), ...body };
   const replay = await findIdempotentResponse(p.userId, "updateWebhook", key, requestValue);
   if (replay) return replay;
   expectedVersion(c.req.raw, hook.version);
@@ -719,7 +794,7 @@ app.post("/api/v1/webhooks/:webhookId/test", async (c) => {
   const p = await principal(c.req.raw, "*");
   const hook = await ownedWebhook(p.userId, c.req.param("webhookId"));
   const id = createId("whd");
-  await getDatabase().insert(webhookDeliveries).values({ id, webhookId: hook.id, eventId: createId("whe"), eventType: "issue.created", payload: { eventId: "test", projectId: hook.projectId, issueId: "iss_test", createdAt: new Date().toISOString(), prompt: "Pinhere webhook test" }, nextAttemptAt: new Date() });
+  await getDatabase().insert(webhookDeliveries).values({ id, webhookId: hook.id, eventId: createId("whe"), eventType: "issue.created", payload: { eventId: "test", projectId: hook.projectId, issueId: "demo-project-webhook-test-issue", createdAt: new Date().toISOString(), prompt: "Pinhere webhook test" }, nextAttemptAt: new Date() });
   await deliverWebhook(id);
   return data({ deliveryId: id }, 202);
 });

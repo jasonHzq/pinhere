@@ -1,6 +1,22 @@
-import type { PendingCapture } from "@/types";
+import type { DomContext, PendingCapture, Rect } from "@/types";
 
 export const PENDING_CAPTURE_KEY = "pinhere_pending_capture";
+
+export function visualRegionDom(
+  viewport: DomContext["viewport"],
+  boundingRect: Rect
+): DomContext {
+  return {
+    cssSelector: "",
+    xpath: "",
+    tagName: "visual-region",
+    attributes: { "data-pinhere-capture": "visual-region" },
+    text: "",
+    outerHTML: "",
+    viewport,
+    boundingRect
+  };
+}
 
 export function pendingCaptureBelongsToTab(
   capture: PendingCapture,

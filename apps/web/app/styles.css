@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+@theme inline {
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-foreground: #ffffff;
+  --color-muted: var(--paper-deep);
+  --color-muted-foreground: var(--muted);
+  --color-border: var(--line);
+  --color-ring: var(--accent);
+  --color-destructive: var(--danger);
+}
+
 :root {
   color-scheme: light;
   --paper: #f4f7fb;
@@ -19,7 +33,7 @@
   --progress: #496781;
   --done: #3f7252;
   --danger: #a93e3e;
-  font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  font-family: "IBM Plex Sans Variable", ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
   background: var(--paper);
   color: var(--ink);
 }
@@ -41,8 +55,45 @@ button, a { -webkit-tap-highlight-color: transparent; }
 a { text-decoration: none; }
 ::selection { background: #2563eb2b; }
 h1, h2, h3, p { margin-block-start: 0; }
-button, select { color: inherit; }
+select { color: inherit; }
 button { touch-action: manipulation; }
+
+:where(
+  a[href],
+  button:not(:disabled),
+  select:not(:disabled),
+  summary,
+  [role="button"]:not([aria-disabled="true"]),
+  [role="link"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([aria-disabled="true"]),
+  [role="option"]:not([aria-disabled="true"]),
+  [role="checkbox"]:not([aria-disabled="true"]),
+  [role="radio"]:not([aria-disabled="true"]),
+  [role="switch"]:not([aria-disabled="true"])
+) {
+  cursor: pointer;
+}
+
+::view-transition-old(root) {
+  animation: .16s cubic-bezier(.16, 1, .3, 1) both fade-out;
+}
+::view-transition-new(root) {
+  animation: .28s cubic-bezier(.16, 1, .3, 1) both fade-in;
+}
+@keyframes fade-out { to { opacity: .72; transform: translateY(-2px); } }
+@keyframes fade-in { from { opacity: 0; transform: translateY(5px); } }
+
+.workspace-loading-spinner {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: workspace-spin .7s linear infinite;
+}
+@keyframes workspace-spin { to { transform: rotate(360deg); } }
 
 .noise { position: relative; isolation: isolate; }
 .noise::before {
@@ -56,10 +107,10 @@ button { touch-action: manipulation; }
 }
 
 .font-display {
-  font-family: "Fraunces", "Noto Sans SC", serif;
+  font-family: "Fraunces Variable", ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
   font-variation-settings: "SOFT" 30, "WONK" 0;
 }
-.font-mono { font-family: "DM Mono", monospace; }
+.font-mono { font-family: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
 .focus-ring:focus-visible { outline: 3px solid #3b82f680; outline-offset: 3px; }
 
 .workspace-grid {
@@ -78,8 +129,8 @@ button { touch-action: manipulation; }
 
 .page-shell { padding: 1.25rem; }
 .page-header {
-  margin-bottom: 2rem;
-  padding-bottom: 1.5rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.15rem;
   border-bottom: 1px solid var(--line);
 }
 .page-kicker {
@@ -88,7 +139,7 @@ button { touch-action: manipulation; }
   gap: .45rem;
   margin-bottom: .7rem;
   color: var(--accent);
-  font-family: "DM Mono", monospace;
+  font-family: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: .625rem;
   font-weight: 500;
   letter-spacing: .14em;
@@ -97,8 +148,8 @@ button { touch-action: manipulation; }
 }
 .page-title {
   margin: 0;
-  font-family: "Fraunces", "Noto Sans SC", serif;
-  font-size: clamp(2.25rem, 5vw, 4rem);
+  font-family: "Fraunces Variable", ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: clamp(2rem, 4vw, 3.15rem);
   font-weight: 700;
   line-height: .98;
   letter-spacing: -.045em;
@@ -123,11 +174,61 @@ button { touch-action: manipulation; }
   place-items: center;
   border-radius: .8rem;
 }
+.metric-chip {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: .35rem;
+  border: 1px solid var(--line);
+  border-radius: .75rem;
+  background: rgba(255, 255, 255, .78);
+  padding: .4rem .7rem;
+  color: var(--muted);
+  font-size: .6875rem;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .035);
+}
+.metric-chip strong {
+  color: var(--ink);
+  font-family: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .75rem;
+}
 .warm-panel {
   border: 1px solid rgba(184, 193, 202, .74);
-  background: rgba(251, 252, 253, .9);
+  background: rgba(251, 252, 253, .97);
   box-shadow: 0 18px 55px rgba(38, 49, 59, .08);
-  backdrop-filter: blur(14px);
+}
+
+.navigation-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 200;
+  height: 3px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s ease;
+}
+.navigation-progress::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: rgba(37, 99, 235, .12);
+}
+.navigation-progress span {
+  display: block;
+  width: 36%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transform: translateX(-110%);
+}
+.navigation-progress.is-active { opacity: 1; }
+.navigation-progress.is-active span { animation: navigation-progress 1.15s ease-in-out infinite; }
+
+@keyframes navigation-progress {
+  0% { transform: translateX(-110%) scaleX(.45); }
+  55% { transform: translateX(145%) scaleX(1); }
+  100% { transform: translateX(330%) scaleX(.55); }
 }
 
 @keyframes rise {
@@ -140,14 +241,27 @@ button { touch-action: manipulation; }
 .delay-3 { animation-delay: .24s; }
 
 @keyframes pulse-pin {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, .28); }
-  50% { box-shadow: 0 0 0 7px rgba(37, 99, 235, 0); }
+  0%, 24% { opacity: .5; transform: scale(1); }
+  72%, 100% { opacity: 0; transform: scale(3.2); }
 }
-.pulse-pin { animation: pulse-pin 2.4s ease-out infinite; }
+.pulse-pin {
+  position: relative;
+  isolation: isolate;
+}
+.pulse-pin::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border: 1px solid currentColor;
+  border-radius: inherit;
+  content: "";
+  pointer-events: none;
+  animation: pulse-pin 2.4s ease-out infinite;
+}
 
 @media (min-width: 768px) {
   .page-shell { padding: 2rem; }
-  .page-header { margin-bottom: 2.25rem; padding-bottom: 1.75rem; }
+  .page-header { margin-bottom: 1.75rem; padding-bottom: 1.35rem; }
 }
 @media (min-width: 1280px) { .page-shell { padding: 2.5rem; } }
 

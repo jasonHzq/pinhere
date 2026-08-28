@@ -1,37 +1,51 @@
 import { describe, expect, it, vi } from "vitest";
-import { captureAndOpenEditor } from "./editor";
+import { captureAndOpenEditor, openEditorSurface } from "./editor";
+
+describe("openEditorSurface", () => {
+  it("opens the capture editor in the current page modal", async () => {
+    const openModal = vi.fn(async () => undefined);
+
+    await openEditorSurface(openModal);
+
+    expect(openModal).toHaveBeenCalledOnce();
+  });
+});
 
 describe("captureAndOpenEditor", () => {
-  it("stores the capture before opening the editor popup", async () => {
+  it("starts capture storage and editor opening without serializing them", async () => {
     const calls: string[] = [];
+    let finishStorage!: () => void;
+    const storageFinished = new Promise<void>((resolve) => { finishStorage = resolve; });
 
-    await captureAndOpenEditor(
-      async () => { calls.push("store-capture"); },
-      async () => { calls.push("open-popup"); }
+    const result = captureAndOpenEditor(
+      async () => { calls.push("store-capture"); await storageFinished; },
+      async () => { calls.push("open-editor"); }
     );
 
-    expect(calls).toEqual(["store-capture", "open-popup"]);
+    expect(calls).toEqual(["store-capture", "open-editor"]);
+    finishStorage();
+    await result;
   });
 
-  it("opens exactly one editor popup", async () => {
-    const openPopup = vi.fn(async () => undefined);
+  it("opens exactly one editor surface", async () => {
+    const openEditor = vi.fn(async () => undefined);
 
     await captureAndOpenEditor(
       async () => undefined,
-      openPopup
+      openEditor
     );
 
-    expect(openPopup).toHaveBeenCalledOnce();
+    expect(openEditor).toHaveBeenCalledOnce();
   });
 
-  it("does not open an editor when the capture cannot be stored", async () => {
-    const openPopup = vi.fn(async () => undefined);
+  it("reports capture storage failures after opening the editor shell", async () => {
+    const openEditor = vi.fn(async () => undefined);
 
     await expect(captureAndOpenEditor(
       async () => { throw new Error("capture failed"); },
-      openPopup
+      openEditor
     )).rejects.toThrow("capture failed");
 
-    expect(openPopup).not.toHaveBeenCalled();
+    expect(openEditor).toHaveBeenCalledOnce();
   });
 });

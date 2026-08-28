@@ -1,12 +1,17 @@
 import type { MetaFunction } from "react-router";
-import { Apple, ArrowDown, ArrowUpRight, Check, ChevronDown, Chrome, CircleDot, Download, FolderOpen, MousePointer2, Puzzle, ScanSearch, WandSparkles } from "lucide-react";
+import { Apple, ArrowDown, ArrowUpRight, Check, ChevronDown, Chrome, CircleDot, CreditCard, Download, FolderOpen, LockKeyhole, MousePointer2, Puzzle, ScanSearch, ShoppingBag, WandSparkles } from "lucide-react";
+import type { ReactNode } from "react";
 import { Link, redirect, useParams } from "react-router";
 import type { Route } from "./+types/landing";
 import { Logo } from "~/components/logo";
 import { buttonVariants } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
+import { workspacePath } from "~/lib/auth-navigation";
 import { cn } from "~/lib/cn";
 import { chromeExtensionRelease } from "~/lib/extension-release";
+import landingStyles from "../landing.css?inline";
+
+export const handle = { criticalStyles: landingStyles };
 
 export const meta: MetaFunction = ({ params }) => {
   const en = params.locale === "en";
@@ -95,7 +100,9 @@ const copy = {
     titleB: "它在哪里。",
     body: "直接圈选出错的 DOM。Pinhere 会保留页面、结构和截图，让你的 AI Agent 领取缺陷、修复并写回结果。",
     cta: "选择浏览器安装",
-    secondary: "登录工作台",
+    workspace: "打开工作台",
+    workspaceNav: "工作台",
+    openingWorkspace: "正在打开工作台…",
     viewWorkflow: "查看工作流",
     installNav: "安装扩展",
     installEyebrow: `Safari 15.4+ · Chrome 116+ · v${chromeExtensionRelease.version}`,
@@ -151,7 +158,9 @@ const copy = {
     titleB: "where it broke.",
     body: "Point at the failing DOM. Pinhere keeps the page, structure and screenshot so your coding agent can claim, fix and report back.",
     cta: "Choose a browser",
-    secondary: "Sign in to workspace",
+    workspace: "Open workspace",
+    workspaceNav: "Workspace",
+    openingWorkspace: "Opening workspace…",
     viewWorkflow: "View workflow",
     installNav: "Install extension",
     installEyebrow: `Safari 15.4+ · Chrome 116+ · v${chromeExtensionRelease.version}`,
@@ -203,14 +212,40 @@ const copy = {
   }
 };
 
+type AccountLinkProps = {
+  to: string;
+  placement: "header" | "hero" | "footer";
+  className: string;
+  pendingLabel: string;
+  children: ReactNode;
+};
+
+function AccountLink({ to, placement, className, pendingLabel, children }: AccountLinkProps) {
+  return (
+    <Link
+      data-analytics-event="sign_in_click"
+      data-analytics-placement={placement}
+      data-workspace-link=""
+      data-pending-label={pendingLabel}
+      className={className}
+      to={to}
+    >
+      {children}
+    </Link>
+  );
+}
+
 export default function Landing() {
   const { locale = "zh-CN" } = useParams();
   const en = locale === "en";
   const t = en ? copy.en : copy.zh;
   const chromeDownloadUrl = chromeExtensionRelease.downloadUrl;
+  const accountHref = workspacePath(locale);
+  const accountLabel = t.workspaceNav;
+  const accountPendingLabel = t.openingWorkspace;
   return (
     <main className="workspace-grid noise min-h-screen overflow-hidden">
-      <header className="sticky top-0 z-40 border-b border-[#d8dee4]/70 bg-[#f4f6f8]/85 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-[#d8dee4]/70 bg-[#f4f6f8]/97">
         <div className="mx-auto flex max-w-[1280px] items-center justify-between px-5 py-3 md:px-8">
         <Logo locale={locale} />
         <nav aria-label={en ? "Primary navigation" : "主导航"} className="flex items-center gap-2">
@@ -218,8 +253,8 @@ export default function Landing() {
             {t.nav.map((item, index) => <a key={item} className="focus-ring rounded-lg px-3 py-2 text-xs font-medium text-[#69737c] transition-colors hover:bg-white/70 hover:text-[#171a1d]" href={["#workflow", "#capabilities", "#faq"][index]}>{item}</a>)}
           </div>
           <Link className="focus-ring inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl px-3 py-2 font-mono text-xs text-[#69737c] hover:bg-white/70 hover:text-[#171a1d]" to={`/${en ? "zh-CN" : "en"}`}>{en ? "中文" : "EN"}</Link>
-          <Link className={cn(buttonVariants({ variant: "outline", size: "sm" }), "hidden sm:inline-flex")} to={`/${locale}/sign-in`}>{en ? "Sign in" : "登录"}</Link>
-          <a className={cn(buttonVariants({ size: "sm" }), "px-3")} href="#install"><Puzzle size={15} /><span className="hidden min-[390px]:inline">{t.installNav}</span><span className="min-[390px]:hidden">{en ? "Install" : "安装"}</span></a>
+          <AccountLink placement="header" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "hidden sm:inline-flex")} to={accountHref} pendingLabel={accountPendingLabel}>{accountLabel}</AccountLink>
+          <a data-analytics-event="install_cta_click" data-analytics-placement="header" className={cn(buttonVariants({ size: "sm" }), "px-3")} href="#install"><Puzzle size={15} /><span className="hidden min-[390px]:inline">{t.installNav}</span><span className="min-[390px]:hidden">{en ? "Install" : "安装"}</span></a>
         </nav>
         </div>
       </header>
@@ -235,8 +270,8 @@ export default function Landing() {
           </h1>
           <p className="animate-rise delay-2 mt-7 max-w-[610px] text-pretty text-base leading-7 text-[#66717a] sm:text-lg sm:leading-8">{t.body}</p>
           <div className="animate-rise delay-3 mt-8 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 sm:flex sm:flex-wrap">
-            <a className={cn(buttonVariants({ size: "lg" }), "group min-w-0 px-3 text-sm sm:w-auto sm:px-5 sm:text-base")} href="#install">{t.cta}<ArrowDown className="transition-transform group-hover:translate-y-0.5" size={18} /></a>
-            <Link className={cn(buttonVariants({ variant: "outline", size: "lg" }), "group min-w-0 px-3 text-sm sm:w-auto sm:px-5 sm:text-base")} to={`/${locale}/sign-in`}>{t.secondary}<ArrowUpRight className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" size={18} /></Link>
+            <a data-analytics-event="install_cta_click" data-analytics-placement="hero" className={cn(buttonVariants({ size: "lg" }), "group min-w-0 px-3 text-sm sm:w-auto sm:px-5 sm:text-base")} href="#install">{t.cta}<ArrowDown className="transition-transform group-hover:translate-y-0.5" size={18} /></a>
+            <AccountLink placement="hero" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "group min-w-0 px-3 text-sm sm:w-auto sm:px-5 sm:text-base")} to={accountHref} pendingLabel={accountPendingLabel}>{t.workspace}<ArrowUpRight className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" size={18} /></AccountLink>
           </div>
           <a className="focus-ring animate-rise delay-3 mt-4 inline-flex items-center gap-1.5 rounded-md font-mono text-[11px] text-[#66717a] transition-colors hover:text-[#1d4ed8]" href="#workflow">{t.viewWorkflow}<ArrowDown size={13} /></a>
         </div>
@@ -246,19 +281,32 @@ export default function Landing() {
           <div className="absolute inset-x-4 -bottom-4 top-4 -z-10 rounded-[28px] bg-[#bfdbfe]" />
           <Card className="overflow-hidden rounded-[26px] border-[#0f172a] bg-[#0f172a] text-white shadow-[0_26px_60px_rgba(15,23,42,.22)]">
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-5 sm:py-4">
-              <div className="flex items-center gap-2"><span className="pulse-pin size-2 rounded-full bg-[#60a5fa]" /><span className="font-mono text-[11px] text-white/60">app.pinhere.dev / checkout</span></div>
-              <ScanSearch size={17} className="text-white/40" />
+              <div className="flex min-w-0 items-center gap-3"><div className="flex gap-1.5"><span className="size-2 rounded-full bg-[#fb7185]" /><span className="size-2 rounded-full bg-[#fbbf24]" /><span className="size-2 rounded-full bg-[#4ade80]" /></div><div className="flex min-w-0 items-center gap-1.5 rounded-md bg-white/[.07] px-2 py-1"><LockKeyhole size={10} className="shrink-0 text-white/45" /><span className="truncate font-mono text-[9px] text-white/60 sm:text-[11px]">shop.aurora.co / checkout</span></div></div>
+              <span className="ml-2 flex shrink-0 items-center gap-1 font-mono text-[8px] uppercase tracking-[.08em] text-[#93c5fd] sm:text-[9px]"><ArrowUpRight size={11} />{en ? "External page" : "外部页面"}</span>
             </div>
             <div className="relative aspect-[16/10] bg-[#1c252d] p-4 sm:aspect-[4/3] sm:p-7">
-              <div className="grid h-full grid-cols-[.34fr_.66fr] gap-3 opacity-75 sm:grid-cols-[.38fr_.62fr] sm:gap-4">
-                <div className="rounded-lg border border-white/10 bg-white/[.035] p-3 sm:rounded-xl sm:p-4"><div className="h-2.5 w-12 rounded-full bg-white/15 sm:h-3 sm:w-16" /><div className="mt-5 space-y-2 sm:mt-8 sm:space-y-3">{[1,2,3,4].map((i) => <div key={i} className="h-5 rounded bg-white/[.07] sm:h-7 sm:rounded-md" />)}</div></div>
-                <div className="rounded-lg border border-white/10 bg-white/[.05] p-3 sm:rounded-xl sm:p-5"><div className="h-3 w-20 rounded-full bg-white/15 sm:h-4 sm:w-28" /><div className="mt-4 h-16 rounded-md bg-white/[.06] sm:mt-5 sm:h-24 sm:rounded-lg" /><div className="mt-3 h-7 rounded-md bg-white/[.08] sm:mt-4 sm:h-10 sm:rounded-lg" /></div>
+              <div className="grid h-full grid-cols-[.42fr_.58fr] gap-3 opacity-90 sm:gap-4">
+                <div className="overflow-hidden rounded-lg border border-white/10 bg-[#253039] p-3 sm:rounded-xl sm:p-4">
+                  <div className="flex items-center gap-2 text-white"><span className="grid size-6 place-items-center rounded-lg bg-[#93c5fd] text-[#17212a]"><ShoppingBag size={12} /></span><span className="font-display text-[10px] font-bold sm:text-sm">AURORA GOODS</span></div>
+                  <div className="mt-4 font-mono text-[7px] uppercase tracking-[.12em] text-white/35 sm:mt-6 sm:text-[8px]">{en ? "Your order · 2 items" : "你的订单 · 2 件商品"}</div>
+                  <div className="mt-2.5 space-y-2 sm:mt-3 sm:space-y-3">
+                    {[{ tone: "bg-[#d7c8b6]", name: en ? "Field notes" : "原野笔记本", price: "$24" }, { tone: "bg-[#78909c]", name: en ? "Canvas pouch" : "帆布收纳包", price: "$36" }].map((item) => <div key={item.name} className="flex items-center gap-2 border-b border-white/[.08] pb-2.5"><span className={`size-7 shrink-0 rounded-md ${item.tone} sm:size-10`} /><span className="min-w-0 flex-1 truncate text-[8px] font-semibold text-white/75 sm:text-[10px]">{item.name}</span><span className="font-mono text-[8px] text-white/50 sm:text-[9px]">{item.price}</span></div>)}
+                  </div>
+                  <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-[8px] text-white/55 sm:text-[10px]"><span>{en ? "Total" : "合计"}</span><strong className="font-mono text-white">$60.00</strong></div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/[.07] p-3 sm:rounded-xl sm:p-5">
+                  <div className="flex items-center gap-2"><CreditCard size={13} className="text-[#93c5fd]" /><span className="text-[9px] font-bold text-white sm:text-xs">{en ? "Payment details" : "付款信息"}</span></div>
+                  <div className="mt-3 space-y-2 sm:mt-4 sm:space-y-3"><div><div className="mb-1 font-mono text-[6px] uppercase tracking-[.08em] text-white/35 sm:text-[8px]">{en ? "Email" : "邮箱"}</div><div className="flex h-6 items-center rounded border border-white/10 bg-[#182129] px-2 font-mono text-[7px] text-white/45 sm:h-8 sm:rounded-md sm:text-[9px]">you@example.com</div></div><div><div className="mb-1 font-mono text-[6px] uppercase tracking-[.08em] text-white/35 sm:text-[8px]">{en ? "Card information" : "银行卡信息"}</div><div className="flex h-6 items-center justify-between rounded border border-white/10 bg-[#182129] px-2 font-mono text-[7px] text-white/45 sm:h-8 sm:rounded-md sm:text-[9px]"><span>4242 4242 4242 4242</span><span>12/28</span></div></div></div>
+                  <div data-demo-checkout-button className="relative z-10 mt-3 flex h-7 items-center justify-center rounded-md bg-[#f8fafc] text-[8px] font-bold text-[#17212a] sm:mt-4 sm:h-10 sm:rounded-lg sm:text-[10px]">
+                    {en ? "Pay $60.00" : "支付 $60.00"}
+                    <div data-demo-selection aria-hidden="true" className="pointer-events-none absolute -inset-1 rounded-[7px] border-2 border-[#60a5fa] bg-[#2563eb]/10 shadow-[0_0_0_999px_rgba(8,12,24,.25)] sm:rounded-[10px]">
+                      <div className="absolute -top-7 left-0 rounded-md bg-[#2563eb] px-2 py-1 font-mono text-[9px] font-medium text-white sm:-top-8 sm:text-[10px]">button.checkout</div>
+                      <span className="absolute -bottom-1 -right-1 size-2 rounded-full border border-[#0f172a] bg-[#60a5fa]" />
+                      <MousePointer2 className="absolute -bottom-4 -right-5 fill-white text-[#0f172a]" size={25} />
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="absolute left-[44%] top-[48%] h-[20%] w-[44%] rounded-[7px] border-2 border-[#60a5fa] bg-[#2563eb]/10 shadow-[0_0_0_999px_rgba(8,12,24,.3)] sm:left-[45%] sm:h-[17%] sm:w-[43%] sm:rounded-[8px]">
-                <div className="absolute -top-6 left-0 rounded-md bg-[#2563eb] px-2 py-1 font-mono text-[9px] font-medium text-white sm:-top-7 sm:text-[10px]">button.checkout</div>
-                <span className="absolute -bottom-1 -right-1 size-2 rounded-full border border-[#0f172a] bg-[#60a5fa]" />
-              </div>
-              <MousePointer2 className="absolute bottom-[22%] right-[11%] fill-white text-[#0f172a] sm:bottom-[31%] sm:right-[12%]" size={25} />
             </div>
             <div className="grid grid-cols-3 border-t border-white/10">
               {t.board.map((label, index) => <div key={label} className="border-r border-white/10 px-3 py-2.5 last:border-0 sm:px-4 sm:py-3"><div className="mb-0.5 font-mono text-[8px] text-white/50 sm:mb-1 sm:text-[9px]">0{index + 1}</div><div className="text-[11px] font-bold sm:text-xs">{label}</div></div>)}
@@ -278,7 +326,7 @@ export default function Landing() {
           <div>
             <div className="grid gap-4 md:grid-cols-2">
               <article className="relative overflow-hidden rounded-[24px] border border-[#0f172a] bg-[#0f172a] p-6 text-white shadow-[0_18px_44px_rgba(15,23,42,.16)] sm:p-7"><span className="absolute -right-12 -top-14 size-40 rounded-full border border-white/10" /><div className="relative"><div className="flex items-center justify-between gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-white text-[#0f172a]"><Apple size={21} /></span><span className="rounded-full border border-[#60a5fa]/35 bg-[#2563eb]/20 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[.08em] text-[#93c5fd]">{t.safariBadge}</span></div><h3 className="font-display mt-8 text-2xl font-bold tracking-[-.035em]">{t.safariTitle}</h3><p className="mt-3 min-h-[4.5rem] text-sm leading-6 text-white/62">{t.safariDescription}</p><div aria-disabled="true" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "mt-6 w-full cursor-not-allowed border-white/20 bg-white/10 text-white/65 hover:bg-white/10 hover:text-white/65")}>{t.safariDownload}<Apple size={17} /></div><div className="mt-3 font-mono text-[9px] text-white/45">{t.safariMeta}</div><p className="mt-5 border-t border-white/10 pt-4 text-[11px] leading-5 text-white/52">{t.safariNotice}</p></div></article>
-              <article className="rounded-[24px] border border-[#bdccdc] bg-white/82 p-6 shadow-[0_12px_36px_rgba(37,70,110,.07)] sm:p-7"><div className="flex items-center justify-between gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-[#e2ebf4] text-[#365667]"><Chrome size={21} /></span><span className="rounded-full border border-[#cbd8e4] bg-[#edf3f7] px-2.5 py-1 font-mono text-[9px] uppercase tracking-[.08em] text-[#587083]">{t.chromeBadge}</span></div><h3 className="font-display mt-8 text-2xl font-bold tracking-[-.035em]">{t.chromeTitle}</h3><p className="mt-3 min-h-[4.5rem] text-sm leading-6 text-[#637485]">{t.chromeDescription}</p><a className={cn(buttonVariants({ variant: "outline", size: "lg" }), "mt-6 w-full")} href={chromeDownloadUrl} download>{t.chromeDownload}<Download size={17} /></a><div className="mt-3 font-mono text-[9px] text-[#70808d]">{t.chromeMeta}</div></article>
+              <article className="rounded-[24px] border border-[#bdccdc] bg-white/82 p-6 shadow-[0_12px_36px_rgba(37,70,110,.07)] sm:p-7"><div className="flex items-center justify-between gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-[#e2ebf4] text-[#365667]"><Chrome size={21} /></span><span className="rounded-full border border-[#cbd8e4] bg-[#edf3f7] px-2.5 py-1 font-mono text-[9px] uppercase tracking-[.08em] text-[#587083]">{t.chromeBadge}</span></div><h3 className="font-display mt-8 text-2xl font-bold tracking-[-.035em]">{t.chromeTitle}</h3><p className="mt-3 min-h-[4.5rem] text-sm leading-6 text-[#637485]">{t.chromeDescription}</p><a data-analytics-event="extension_download" data-analytics-placement="install_card" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "mt-6 w-full")} href={chromeDownloadUrl} download>{t.chromeDownload}<Download size={17} /></a><div className="mt-3 font-mono text-[9px] text-[#70808d]">{t.chromeMeta}</div></article>
             </div>
 
             <div className="mb-4 mt-10 flex items-center justify-between border-b border-[#aebed0] pb-4 font-mono text-[10px] uppercase tracking-[.13em] text-[#687b8c]"><span>{t.installGuide}</span><span>01—03</span></div>
@@ -344,14 +392,14 @@ export default function Landing() {
       <section id="faq" className="scroll-mt-16 border-t border-[#d8dee4] bg-[#f8fafb]/90">
         <div className="mx-auto grid max-w-[1280px] gap-10 px-5 py-16 sm:py-20 md:px-8 lg:grid-cols-[.72fr_1.28fr] lg:py-24">
           <h2 className="font-display text-balance text-[clamp(2rem,4vw,3.8rem)] font-bold leading-[1] tracking-[-.045em]">{t.faqTitle}</h2>
-          <div>
-            {t.faq.map(([question, answer], index) => <details key={question} className="group border-t border-[#d8dee4] py-1 last:border-b" open={index === 0}><summary className="focus-ring flex cursor-pointer list-none items-center justify-between gap-5 rounded-lg py-5 text-base font-bold tracking-[-.02em] marker:content-none sm:text-lg"><span>{question}</span><ChevronDown className="shrink-0 text-[#70808b] transition-transform group-open:rotate-180" size={19} /></summary><p className="max-w-[720px] pb-6 pr-8 text-sm leading-7 text-[#68737c]">{answer}</p></details>)}
+          <div className="overflow-hidden rounded-2xl border border-[#d8dee4] bg-white/85 shadow-[0_5px_18px_rgba(15,23,42,.035)]">
+            {t.faq.map(([question, answer], index) => <details key={question} className="group border-b border-[#d8dee4] last:border-b-0" open={index === 0}><summary className="focus-ring flex min-h-16 cursor-pointer list-none items-center justify-between gap-5 rounded-xl px-5 text-base font-bold tracking-[-.02em] marker:content-none sm:px-6 sm:text-lg"><span>{question}</span><ChevronDown className="shrink-0 text-[#70808b] transition-transform duration-300 group-open:rotate-180" size={19} /></summary><p className="max-w-[720px] bg-[#f8fafc] px-5 pb-6 pt-1 text-sm leading-7 text-[#68737c] sm:px-6">{answer}</p></details>)}
           </div>
         </div>
       </section>
 
       <footer className="border-t border-[#d8dee4] bg-[#edf1f4]/70 px-5 py-9 md:px-8">
-        <div className="mx-auto flex max-w-[1280px] flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"><div><Logo locale={locale} /><p className="mt-3 max-w-[620px] text-xs leading-5 text-[#73766f]">{t.footer}</p></div><div className="flex flex-wrap gap-x-4 gap-y-2 font-mono text-[11px] text-[#73766f]"><a className="focus-ring rounded-sm text-[#1d4ed8]" href="#install">{t.installNav}</a><a className="focus-ring rounded-sm" href="#workflow">{t.nav[0]}</a><a className="focus-ring rounded-sm" href="#capabilities">{t.nav[1]}</a><Link className="focus-ring rounded-sm" to={`/${locale}/sign-in`}>{en ? "Sign in" : "登录"}</Link></div></div>
+        <div className="mx-auto flex max-w-[1280px] flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"><div><Logo locale={locale} /><p className="mt-3 max-w-[620px] text-xs leading-5 text-[#73766f]">{t.footer}</p></div><div className="flex flex-wrap gap-x-4 gap-y-2 font-mono text-[11px] text-[#73766f]"><a className="focus-ring rounded-sm text-[#1d4ed8]" href="#install">{t.installNav}</a><a className="focus-ring rounded-sm" href="#workflow">{t.nav[0]}</a><a className="focus-ring rounded-sm" href="#capabilities">{t.nav[1]}</a><Link className="focus-ring rounded-sm" to={`/${locale}/privacy`}>{en ? "Privacy" : "隐私"}</Link><Link className="focus-ring rounded-sm" to={`/${locale}/support`}>{en ? "Support" : "支持"}</Link><AccountLink placement="footer" className="focus-ring rounded-sm" to={accountHref} pendingLabel={accountPendingLabel}>{accountLabel}</AccountLink></div></div>
       </footer>
     </main>
   );

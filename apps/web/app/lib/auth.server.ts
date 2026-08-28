@@ -45,6 +45,16 @@ function createPinhereAuth() {
         rateLimit: authRateLimits
       }
     }),
+    // Session reads sit on the hot path for every protected loader and API
+    // action. Cache a signed, encrypted snapshot briefly so routine navigation
+    // does not need an extra Neon round trip; sign-out still clears it at once.
+    session: {
+      cookieCache: {
+        enabled: true,
+        maxAge: 5 * 60,
+        strategy: "jwe"
+      }
+    },
     rateLimit: { enabled: true, storage: "database" },
     socialProviders: process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET
       ? {

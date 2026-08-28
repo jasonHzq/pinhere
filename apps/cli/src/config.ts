@@ -3,7 +3,15 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 export type AgentMode = "yolo" | "workspace" | "confirm";
-export type Binding = { projectId: string; path: string; harness: "codex"; mode: AgentMode };
+export type Binding = {
+  /** Internal compatibility key. Never expose this through CLI output. */
+  projectId: string;
+  projectIdentifier?: string;
+  path: string;
+  harness: "codex";
+  mode: AgentMode;
+  paused?: boolean;
+};
 export type Config = {
   baseUrl: string;
   token?: string;
@@ -44,4 +52,3 @@ export async function updateConfig(update: (current: Config) => Config) {
   await writeConfig(next);
   return next;
 }
-

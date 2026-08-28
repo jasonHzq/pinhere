@@ -2,8 +2,10 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes }
 import { lookup } from "node:dns/promises";
 import { and, asc, eq, inArray, isNull, lte } from "drizzle-orm";
 import { getDatabase } from "~/db/client.server";
-import { outboxEvents, webhookDeliveries, webhooks } from "~/db/schema";
+import { issues, outboxEvents, webhookDeliveries, webhooks } from "~/db/schema";
 import { createId, createSecret, digestSecret } from "./ids.server";
+import { publicIssue } from "./issue-readable-id.server";
+import { repairPrompt } from "./repair-prompt";
 
 const RETRY_DELAYS_MS = [5 * 60_000, 30 * 60_000, 2 * 3_600_000, 6 * 3_600_000, 24 * 3_600_000];
 
@@ -63,18 +65,29 @@ async function materializeOutbox() {
   const db = getDatabase();
   const events = await db.select().from(outboxEvents).where(isNull(outboxEvents.processedAt)).orderBy(asc(outboxEvents.createdAt)).limit(50);
   for (const event of events) {
+    let payload = event.payload;
+    if (event.type === "issue.created") {
+      const [issue] = await db.select().from(issues).where(eq(issues.id, event.aggregateId)).limit(1);
+      if (!issue) {
+        await db.update(outboxEvents).set({ processedAt: new Date() }).where(eq(outboxEvents.id, event.id));
+        continue;
+      }
+      if (issue.readableIdStatus === "pending") continue;
+      const issueId = publicIssue(issue).id;
+      payload = { ...payload, issueId, prompt: repairPrompt(issueId) };
+    }
     const hooks = await db.select().from(webhooks).where(and(
       eq(webhooks.userId, event.userId),
       eq(webhooks.enabled, true)
     ));
-    const matching = hooks.filter((hook) => !hook.projectId || hook.projectId === event.payload.projectId);
+    const matching = hooks.filter((hook) => !hook.projectId || hook.projectId === payload.projectId);
     if (matching.length) {
       await db.insert(webhookDeliveries).values(matching.map((hook) => ({
         id: createId("whd"),
         webhookId: hook.id,
         eventId: event.id,
         eventType: event.type,
-        payload: event.payload,
+        payload,
         nextAttemptAt: new Date()
       }))).onConflictDoNothing();
     }

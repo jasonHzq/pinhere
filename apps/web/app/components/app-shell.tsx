@@ -1,86 +1,244 @@
-import { Boxes, KanbanSquare, LogOut, Settings2 } from "lucide-react";
-import { Link, NavLink, useParams } from "react-router";
+import { Boxes, Cable, KanbanSquare, Languages, LoaderCircle, LogOut, Menu, PanelLeftClose, Settings2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { PrefetchPageLinks, useFetcher, useLocation, useNavigate, useNavigation, useParams } from "react-router";
+import {
+  AnimatedSidebar,
+  AnimatedSidebarContent,
+  AnimatedSidebarFooter,
+  AnimatedSidebarGroup,
+  AnimatedSidebarGroupContent,
+  AnimatedSidebarGroupLabel,
+  AnimatedSidebarHeader,
+  AnimatedSidebarInset,
+  AnimatedSidebarMenu,
+  AnimatedSidebarMenuButton,
+  AnimatedSidebarMenuItem,
+  AnimatedSidebarProvider,
+  AnimatedSidebarRail,
+  AnimatedSidebarTrigger,
+  useAnimatedSidebar
+} from "~/components/motion/animated-sidebar";
 import { authClient } from "~/lib/auth-client";
 import { cn } from "~/lib/cn";
+import { localeNavigationTarget, type SupportedLocale } from "~/lib/locale-navigation";
+import { BrandMark, Logo } from "./logo";
 
 const navItems = [
-  { to: "", icon: KanbanSquare, zh: "缺陷看板", shortZh: "看板", en: "Issue board", shortEn: "Board", end: true },
-  { to: "projects", icon: Boxes, zh: "项目与网址", shortZh: "项目", en: "Projects & origins", shortEn: "Projects" },
-  { to: "settings", icon: Settings2, zh: "自动化设置", shortZh: "自动化", en: "Automation settings", shortEn: "Automation" }
+  { to: "", icon: KanbanSquare, index: "01", zh: "缺陷看板", en: "Issue board" },
+  { to: "projects", icon: Boxes, index: "02", zh: "我的项目", en: "My projects" },
+  { to: "agent", icon: Cable, index: "03", zh: "Agent 接入", en: "Agent setup" },
+  { to: "settings", icon: Settings2, index: "04", zh: "自动化设置", en: "Automation settings" }
 ];
+
+function SidebarToggle({ en }: { en: boolean }) {
+  const sidebar = useAnimatedSidebar();
+  const expanded = sidebar.isMobile ? sidebar.openMobile : sidebar.state === "expanded";
+  return (
+    <AnimatedSidebarTrigger
+      className="text-[#738096] transition-colors hover:bg-[#eef3fb] hover:text-[#0f172a]"
+      aria-label={expanded ? (en ? "Collapse navigation" : "收起导航") : (en ? "Expand navigation" : "展开导航")}
+    >
+      {expanded ? <PanelLeftClose size={17} /> : <BrandMark className="size-8" />}
+    </AnimatedSidebarTrigger>
+  );
+}
+
+function WorkspaceNavigationItem({
+  active,
+  badge,
+  children,
+  icon,
+  indexRoute,
+  onSelect,
+  warm,
+  to
+}: {
+  active: boolean;
+  badge: React.ReactNode;
+  children: React.ReactNode;
+  icon: React.ReactNode;
+  indexRoute?: boolean;
+  onSelect: () => void;
+  warm: boolean;
+  to: string;
+}) {
+  const [prefetch, setPrefetch] = useState(false);
+  const routeWarmer = useFetcher();
+  const warmedRoute = useRef("");
+  const beginPrefetch = () => setPrefetch(true);
+
+  useEffect(() => {
+    const target = indexRoute ? `${to}?index` : to;
+    if (!warm || active || warmedRoute.current === target) return;
+    warmedRoute.current = target;
+    void routeWarmer.load(target);
+  }, [active, indexRoute, routeWarmer, to, warm]);
+
+  return (
+    <AnimatedSidebarMenuItem
+      onFocusCapture={beginPrefetch}
+      onMouseEnter={beginPrefetch}
+      onPointerDown={beginPrefetch}
+    >
+      <AnimatedSidebarMenuButton
+        icon={icon}
+        badge={badge}
+        isActive={active}
+        closeOnSelect
+        onSelect={onSelect}
+        className={cn("min-h-12 rounded-xl px-3 text-[#66758a] hover:text-[#172033] focus-visible:bg-[#e8effb]", active && "font-bold text-[#1d4ed8]")}
+      >
+        {children}
+      </AnimatedSidebarMenuButton>
+      {(warm || prefetch) && !active ? <PrefetchPageLinks page={to} /> : null}
+    </AnimatedSidebarMenuItem>
+  );
+}
 
 export function AppShell({ children, userId }: { children: React.ReactNode; userId: string }) {
   const { locale = "zh-CN" } = useParams();
   const en = locale === "en";
-  const signOut = () => authClient.signOut().then(() => window.location.assign(`/${locale}`));
+  const navigate = useNavigate();
+  const location = useLocation();
+  const navigation = useNavigation();
+  const navigating = navigation.state !== "idle";
+  const [signingOut, setSigningOut] = useState(false);
+  const [warmRoutes, setWarmRoutes] = useState(false);
+  const targetLocale: SupportedLocale = en ? "zh-CN" : "en";
+  const languageTarget = localeNavigationTarget(location, targetLocale);
+  const languageLabel = en ? "Switch to Chinese" : "切换到英文";
+  const languageName = en ? "中文" : "English";
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("pinhere:authenticated", "1");
+    } catch {
+      // Storage can be unavailable in hardened/private browser contexts.
+    }
+  }, []);
+
+  useEffect(() => {
+    // Once the current route is interactive, quietly warm the other two route
+    // modules and their loader data. Intent prefetch remains as the fast path
+    // for users who click before this short idle window.
+    const timer = window.setTimeout(() => setWarmRoutes(true), 400);
+    return () => window.clearTimeout(timer);
+  }, [locale]);
+
+  async function signOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await authClient.signOut();
+      try {
+        localStorage.setItem("pinhere:authenticated", "0");
+      } catch {
+        // Navigation still completes when storage is unavailable.
+      }
+      window.location.assign(`/${locale}`);
+    } catch {
+      setSigningOut(false);
+    }
+  }
 
   return (
-    <div className="workspace-grid min-h-screen lg:grid lg:grid-cols-[248px_1fr]">
-      <aside className="relative hidden min-h-screen overflow-hidden bg-[#0f172a] text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
-        <div className="pointer-events-none absolute -right-20 -top-24 size-64 rounded-full border border-white/10" />
-        <div className="pointer-events-none absolute -right-8 -top-12 size-32 rounded-full border border-white/10" />
-        <div className="relative flex h-full flex-col px-5 py-6">
-          <div className="flex items-center justify-between">
-            <Link to={`/${locale}`} className="focus-ring inline-flex min-h-11 items-center gap-2.5 rounded-xl text-[15px] font-bold tracking-[-.025em]">
-              <span className="grid size-9 place-items-center rounded-xl bg-white shadow-[0_4px_12px_rgba(0,0,0,.15)]"><img className="size-6" src="/pinhere-mark.svg" alt="" /></span>
-              PINHERE
-            </Link>
-            <span className="rounded-full border border-white/15 bg-white/5 px-2 py-1 font-mono text-[9px] tracking-[.12em] text-white/55">V1</span>
+    <AnimatedSidebarProvider
+      className="workspace-grid"
+      style={{ "--sidebar-width": "16.75rem", "--sidebar-width-icon": "4.75rem", "--sidebar-width-mobile": "19rem" }}
+    >
+      <div className={cn("navigation-progress", navigating && "is-active")} aria-hidden="true"><span /></div>
+      <div className="sr-only" role="status" aria-live="polite">{navigating ? (en ? "Loading page" : "页面加载中") : ""}</div>
+
+      <AnimatedSidebar
+        ariaLabel={en ? "Workspace navigation" : "工作台导航"}
+        collapsible="icon"
+        className="border-[#d9e2ec] bg-[#fbfcfe] text-[#0f172a]"
+        panelClassName="border-[#d9e2ec] bg-[#fbfcfe] text-[#0f172a] [--color-muted:#e8effb] [--color-muted-foreground:#66758a] [--color-ring:#2563eb]"
+      >
+        <AnimatedSidebarHeader className="relative gap-5 border-b border-[#e4eaf1] px-4 pb-5 pt-5">
+          <div className="flex min-h-11 items-center justify-between gap-2 group-data-[state=collapsed]/sidebar-wrapper:justify-center">
+            <div className="min-w-0 overflow-hidden group-data-[state=collapsed]/sidebar-wrapper:hidden"><Logo locale={locale} className="whitespace-nowrap" /></div>
+            <SidebarToggle en={en} />
           </div>
-
-          <div className="mt-9 rounded-2xl border border-white/10 bg-white/[.055] p-3.5">
-            <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[.14em] text-white/45"><span className="pulse-pin size-1.5 rounded-full bg-[#60a5fa]" />Workspace</div>
-            <div className="mt-2 truncate text-sm font-semibold text-white/90">{en ? "Personal desk" : "个人工作台"}</div>
+          <div className="flex items-end justify-between gap-3 px-1 transition-opacity group-data-[state=collapsed]/sidebar-wrapper:pointer-events-none group-data-[state=collapsed]/sidebar-wrapper:h-0 group-data-[state=collapsed]/sidebar-wrapper:overflow-hidden group-data-[state=collapsed]/sidebar-wrapper:opacity-0">
+            <div>
+              <div className="font-mono text-[9px] uppercase tracking-[.16em] text-[#8a97a9]">Workspace</div>
+              <div className="mt-1.5 truncate text-sm font-bold tracking-[-.02em] text-[#1b2638]">{en ? "Personal desk" : "个人工作台"}</div>
+            </div>
+            <span className="mb-0.5 inline-flex items-center gap-1.5 rounded-full bg-[#edf4ff] px-2 py-1 font-mono text-[8px] font-medium uppercase tracking-[.08em] text-[#1d4ed8]"><span className="pulse-pin size-1.5 rounded-full bg-[#2563eb]" />Live</span>
           </div>
+        </AnimatedSidebarHeader>
 
-          <nav className="mt-7 space-y-1.5" aria-label={en ? "Workspace navigation" : "工作台导航"}>
-            {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                end={item.end}
-                to={`/${locale}/app${item.to ? `/${item.to}` : ""}`}
-                className={({ isActive }) => cn(
-                  "focus-ring group flex min-h-11 items-center gap-3 rounded-xl px-3.5 text-sm font-medium transition-all duration-200",
-                  isActive ? "bg-white text-[#1d4ed8] shadow-[0_7px_18px_rgba(0,0,0,.12)]" : "text-white/62 hover:bg-white/8 hover:text-white"
-                )}
-              >
-                <item.icon size={17} strokeWidth={1.8} />
-                <span>{en ? item.en : item.zh}</span>
-              </NavLink>
-            ))}
-          </nav>
+        <AnimatedSidebarContent className="relative px-3 py-5">
+          <AnimatedSidebarGroup className="px-0 py-0">
+            <AnimatedSidebarGroupLabel className="mb-2 text-[#96a1b0]">{en ? "Navigate" : "工作区导航"}</AnimatedSidebarGroupLabel>
+            <AnimatedSidebarGroupContent>
+              <AnimatedSidebarMenu className="gap-2">
+                {navItems.map((item) => {
+                  const to = `/${locale}/app${item.to ? `/${item.to}` : ""}`;
+                  const active = item.to ? location.pathname.startsWith(to) : location.pathname === to || location.pathname === `${to}/`;
+                  return (
+                    <WorkspaceNavigationItem
+                      key={item.to}
+                      active={active}
+                      badge={<span className={cn("font-mono text-[9px] tracking-[.08em]", active ? "text-[#2563eb]" : "text-[#a0aaba]")}>{item.index}</span>}
+                      icon={<item.icon size={17} strokeWidth={1.8} />}
+                      indexRoute={!item.to}
+                      onSelect={() => navigate(to, { viewTransition: true })}
+                      warm={warmRoutes && !navigating}
+                      to={to}
+                    >
+                      {en ? item.en : item.zh}
+                    </WorkspaceNavigationItem>
+                  );
+                })}
+              </AnimatedSidebarMenu>
+            </AnimatedSidebarGroupContent>
+          </AnimatedSidebarGroup>
+        </AnimatedSidebarContent>
 
-          <div className="mt-auto border-t border-white/10 pt-5">
-            <div className="mb-3 truncate px-2 font-mono text-[9px] tracking-[.05em] text-white/35">{userId}</div>
-            <button className="focus-ring flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3 text-left text-xs font-medium text-white/58 transition-colors hover:bg-white/8 hover:text-white" onClick={signOut}>
-              <LogOut size={15} />{en ? "Sign out" : "退出登录"}
+        <AnimatedSidebarFooter className="relative border-[#e4eaf1] px-3 pb-4 pt-3">
+          <button
+            type="button"
+            aria-label={languageLabel}
+            title={languageLabel}
+            className="focus-ring flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3 text-left text-xs font-semibold text-[#728096] transition-colors hover:bg-[#eef3fb] hover:text-[#172033] group-data-[state=collapsed]/sidebar-wrapper:justify-center"
+            onClick={() => navigate(languageTarget, { preventScrollReset: true, viewTransition: true })}
+          >
+            <Languages className="shrink-0" size={16} />
+            <span className="truncate group-data-[state=collapsed]/sidebar-wrapper:hidden">{languageName}</span>
+          </button>
+          <div className="px-2 group-data-[state=collapsed]/sidebar-wrapper:hidden">
+            <div className="font-mono text-[8px] uppercase tracking-[.14em] text-[#9aa5b4]">{en ? "Signed in" : "当前账号"}</div>
+            <div title={userId} className="mt-1 truncate text-[11px] font-medium text-[#66758a]">{userId}</div>
+          </div>
+          <button
+            disabled={signingOut}
+            aria-busy={signingOut || undefined}
+            className="focus-ring flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3 text-left text-xs font-semibold text-[#728096] transition-colors hover:bg-[#eef3fb] hover:text-[#172033] disabled:opacity-55"
+            onClick={() => void signOut()}
+          >
+            {signingOut ? <LoaderCircle className="shrink-0 animate-spin" size={15} /> : <LogOut className="shrink-0" size={15} />}
+            <span className="truncate group-data-[state=collapsed]/sidebar-wrapper:hidden">{signingOut ? (en ? "Signing out…" : "正在退出…") : en ? "Sign out" : "退出登录"}</span>
+          </button>
+        </AnimatedSidebarFooter>
+        <AnimatedSidebarRail aria-label={en ? "Toggle navigation" : "展开或收起导航"} />
+      </AnimatedSidebar>
+
+      <AnimatedSidebarInset className="min-w-0 bg-transparent">
+        <header className="sticky top-0 z-30 grid h-16 grid-cols-[1fr_auto_1fr] items-center border-b border-[#d9e2ec]/80 bg-[#f4f7fb]/97 px-4 md:hidden">
+          <AnimatedSidebarTrigger className="focus-ring text-[#526277] hover:bg-black/5" aria-label={en ? "Open navigation" : "打开导航"}><Menu size={19} /></AnimatedSidebarTrigger>
+          <Logo locale={locale} className="gap-2 text-sm [&_img]:size-7" />
+          <div className="flex items-center justify-self-end gap-1">
+            <button type="button" aria-label={languageLabel} title={languageLabel} className="focus-ring icon-button gap-1 text-[#68737d] hover:bg-black/5 hover:text-[#171a1d]" onClick={() => navigate(languageTarget, { preventScrollReset: true, viewTransition: true })}>
+              <Languages size={16} />
+              <span className="font-mono text-[9px] font-medium">{en ? "中" : "EN"}</span>
             </button>
+            <button title={en ? "Sign out" : "退出登录"} aria-label={en ? "Sign out" : "退出登录"} disabled={signingOut} className="focus-ring icon-button text-[#68737d] hover:bg-black/5 hover:text-[#171a1d] disabled:opacity-45" onClick={() => void signOut()}>{signingOut ? <LoaderCircle className="animate-spin" size={17} /> : <LogOut size={17} />}</button>
           </div>
-        </div>
-      </aside>
-
-      <div className="min-w-0">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#d9e2ec]/80 bg-[#f4f7fb]/90 px-4 backdrop-blur-xl lg:hidden">
-          <Link to={`/${locale}`} className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-xl text-sm font-bold tracking-[-.025em]"><img className="size-7" src="/pinhere-mark.svg" alt="" />PINHERE</Link>
-          <button title={en ? "Sign out" : "退出登录"} aria-label={en ? "Sign out" : "退出登录"} className="focus-ring icon-button text-[#68737d] hover:bg-black/5 hover:text-[#171a1d]" onClick={signOut}><LogOut size={17} /></button>
         </header>
-
-        <div className="workspace-surface min-w-0 pb-24 lg:pb-0">{children}</div>
-
-        <nav aria-label={en ? "Workspace navigation" : "工作台导航"} className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-3 rounded-2xl border border-[#cbd3da] bg-white/95 p-1.5 shadow-[0_14px_40px_rgba(32,42,51,.2)] backdrop-blur-xl lg:hidden">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              end={item.end}
-              to={`/${locale}/app${item.to ? `/${item.to}` : ""}`}
-              className={({ isActive }) => cn("focus-ring flex min-h-[3.25rem] min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-semibold transition-colors", isActive ? "bg-[#eff6ff] text-[#1d4ed8]" : "text-[#64748b]")}
-            >
-              <item.icon size={17} strokeWidth={1.9} />
-              <span className="truncate">{en ? item.shortEn : item.shortZh}</span>
-            </NavLink>
-          ))}
-        </nav>
-      </div>
-    </div>
+        <div className="workspace-surface min-w-0">{children}</div>
+      </AnimatedSidebarInset>
+    </AnimatedSidebarProvider>
   );
 }

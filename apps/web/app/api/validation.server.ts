@@ -19,9 +19,13 @@ export async function jsonBody<T>(request: Request, schema: ZodType<T>): Promise
   return parsed.data;
 }
 
+export function versionPrecondition(request: Request) {
+  return request.headers.get("x-pinhere-if-match") ?? request.headers.get("if-match");
+}
+
 export function expectedVersion(request: Request, current: number) {
-  const ifMatch = request.headers.get("if-match");
-  if (!ifMatch) throw new ApiError("if_match_required", "If-Match is required", 412);
+  const ifMatch = versionPrecondition(request);
+  if (!ifMatch) throw new ApiError("if_match_required", "X-Pinhere-If-Match is required", 412);
   const normalized = ifMatch.replaceAll('"', "");
   if (normalized !== String(current)) {
     throw new ApiError("version_conflict", "The resource changed; reload it and try again", 412);

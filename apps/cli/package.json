@@ -1,6 +1,6 @@
 {
   "name": "pinhere",
-  "version": "0.1.2",
+  "version": "0.2.4",
   "description": "Pair local coding agents with Pinhere and process browser-reported issues.",
   "type": "module",
   "bin": { "pinhere": "dist/index.js" },

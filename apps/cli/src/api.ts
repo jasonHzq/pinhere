@@ -2,6 +2,10 @@ import type { Config } from "./config.js";
 
 export type ApiEnvelope<T> = { data: T; meta?: { nextCursor?: string | null } };
 
+export function issuePath(issueId: string, suffix = "") {
+  return `/issues/${encodeURIComponent(issueId)}${suffix}`;
+}
+
 export class PinhereApi {
   constructor(private readonly config: Config) {}
 
@@ -34,4 +38,3 @@ export class PinhereApi {
     return { bytes: Buffer.from(await response.arrayBuffer()), contentType: response.headers.get("content-type") ?? "application/octet-stream" };
   }
 }
-

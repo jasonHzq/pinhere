@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PendingCapture } from "@/types";
-import { pendingCaptureBelongsToTab } from "./capture";
+import { pendingCaptureBelongsToTab, visualRegionDom } from "./capture";
 
 const capture = (overrides: Partial<PendingCapture> = {}): PendingCapture => ({
   tabId: 42,
@@ -24,5 +24,23 @@ describe("pendingCaptureBelongsToTab", () => {
 
   it("rejects tabs without a valid URL", () => {
     expect(pendingCaptureBelongsToTab(capture(), { id: 42 })).toBe(false);
+  });
+});
+
+describe("visualRegionDom", () => {
+  it("keeps the selected viewport rectangle without inventing an element selector", () => {
+    expect(visualRegionDom(
+      { width: 1440, height: 900, devicePixelRatio: 2 },
+      { x: 120, y: 80, width: 640, height: 360 }
+    )).toEqual({
+      cssSelector: "",
+      xpath: "",
+      tagName: "visual-region",
+      attributes: { "data-pinhere-capture": "visual-region" },
+      text: "",
+      outerHTML: "",
+      viewport: { width: 1440, height: 900, devicePixelRatio: 2 },
+      boundingRect: { x: 120, y: 80, width: 640, height: 360 }
+    });
   });
 });

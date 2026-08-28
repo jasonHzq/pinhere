@@ -11,6 +11,11 @@ export type Principal = {
   scopes: string[];
 };
 
+// Nested React Router loaders share the same Request object. Keep auth work
+// request-scoped so the workspace layout and its active page decrypt/lookup a
+// session once instead of repeating the same hot-path operation.
+const principalByRequest = new WeakMap<Request, Promise<Principal | null>>();
+
 async function devPrincipal(): Promise<Principal | null> {
   const production = process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
   if (production || !process.env.PINHERE_DEV_USER_ID) return null;
@@ -29,7 +34,7 @@ async function devPrincipal(): Promise<Principal | null> {
   };
 }
 
-export async function getPrincipal(request: Request): Promise<Principal | null> {
+async function resolvePrincipal(request: Request): Promise<Principal | null> {
   const authorization = request.headers.get("authorization");
   if (authorization?.startsWith("Bearer ")) {
     const token = authorization.slice(7);
@@ -70,6 +75,14 @@ export async function getPrincipal(request: Request): Promise<Principal | null> 
     if (process.env.NODE_ENV === "production") throw error;
   }
   return devPrincipal();
+}
+
+export function getPrincipal(request: Request): Promise<Principal | null> {
+  const cached = principalByRequest.get(request);
+  if (cached) return cached;
+  const principal = resolvePrincipal(request);
+  principalByRequest.set(request, principal);
+  return principal;
 }
 
 export function hasScope(principal: Principal, scope: string) {

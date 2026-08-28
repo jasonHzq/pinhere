@@ -223,7 +223,7 @@
           }
         },
         "409": {
-          "description": "Origin 已归属于其他项目。",
+          "description": "项目标识或 Origin 已被占用。",
           "schema": {
             "$ref": "#/components/schemas/ErrorResponse"
           },
@@ -266,7 +266,8 @@
               "Idempotency-Key": "example-project-create"
             },
             "body": {
-              "name": "Checkout",
+              "name": "支付中心",
+              "identifier": "payment-center",
               "description": "Checkout experience issues",
               "origins": [
                 "https://shop.example.com"
@@ -1198,7 +1199,7 @@
     "issues/createIssue": {
       "operationId": "createIssue",
       "summary": "创建缺陷",
-      "description": "创建缺陷并在同一事务写入 issue.created Outbox。",
+      "description": "立即创建缺陷并写入 issue.created Outbox；可将截图随缺陷一次提交；可读 ID 在后台异步生成，不阻塞此接口。",
       "method": "POST",
       "path": "/issues",
       "consumes": [
@@ -1240,7 +1241,7 @@
       ],
       "responses": {
         "201": {
-          "description": "缺陷已创建。",
+          "description": "缺陷已创建；idStatus 可能仍为 pending。",
           "schema": {
             "type": "object",
             "description": "已创建缺陷。",
@@ -1274,6 +1275,19 @@
         },
         "409": {
           "description": "页面 Origin 与项目不匹配，或截图已被使用。",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        },
+        "413": {
+          "description": "随缺陷提交的截图超过 2 MiB。",
           "schema": {
             "$ref": "#/components/schemas/ErrorResponse"
           },
@@ -1347,7 +1361,11 @@
                   "height": 44
                 }
               },
-              "attachmentId": "att_example",
+              "screenshot": {
+                "fileName": "checkout.webp",
+                "contentType": "image/webp",
+                "base64": "UklGRiQAAABXRUJQ"
+              },
               "source": "extension"
             }
           },
@@ -1378,9 +1396,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "缺陷 ID。",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "可读缺陷 ID；兼容创建时返回的临时 ID 和历史别名。",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         }
@@ -1463,7 +1482,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {}
@@ -1497,9 +1516,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "缺陷 ID。",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "可读缺陷 ID；兼容创建时返回的临时 ID 和历史别名。",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -1623,7 +1643,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -1659,9 +1679,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "缺陷 ID。",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "可读缺陷 ID；兼容创建时返回的临时 ID 和历史别名。",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -1713,7 +1734,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -1747,9 +1768,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "缺陷 ID。",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "可读缺陷 ID；兼容创建时返回的临时 ID 和历史别名。",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         }
@@ -1825,7 +1847,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {}
@@ -1857,9 +1879,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "缺陷 ID。",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "可读缺陷 ID；兼容创建时返回的临时 ID 和历史别名。",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -1956,7 +1979,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -1990,9 +2013,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "缺陷 ID。",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "可读缺陷 ID；兼容创建时返回的临时 ID 和历史别名。",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         }
@@ -2062,7 +2086,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {}
@@ -2222,9 +2246,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "缺陷 ID。",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "可读缺陷 ID；兼容创建时返回的临时 ID 和历史别名。",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -2349,7 +2374,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -2388,9 +2413,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "缺陷 ID。",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "可读缺陷 ID；兼容创建时返回的临时 ID 和历史别名。",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -2515,7 +2541,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -2552,9 +2578,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "缺陷 ID。",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "可读缺陷 ID；兼容创建时返回的临时 ID 和历史别名。",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -2651,7 +2678,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -3579,7 +3606,7 @@
             "query": {},
             "headers": {},
             "body": {
-              "issueId": "iss_example",
+              "issueId": "payment-center-checkout-button-does-not-submit",
               "harness": "codex"
             }
           },
@@ -5159,9 +5186,10 @@
         "required": true,
         "schema": {
           "type": "string",
-          "description": "缺陷 ID。",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "description": "可读缺陷 ID；兼容创建时返回的临时 ID 和历史别名。",
           "examples": [
-            "iss_example"
+            "payment-center-checkout-button-does-not-submit"
           ]
         }
       },
@@ -5351,6 +5379,7 @@
           "id",
           "userId",
           "name",
+          "identifier",
           "description",
           "createdAt",
           "updatedAt",
@@ -5378,6 +5407,16 @@
             "description": "项目名称。",
             "examples": [
               "Checkout"
+            ]
+          },
+          "identifier": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 32,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "稳定的项目标识，用作可读缺陷 ID 前缀，创建后不可修改。",
+            "examples": [
+              "payment-center"
             ]
           },
           "description": {
@@ -5450,7 +5489,8 @@
         "description": "创建项目并可同时设置 Origin。",
         "type": "object",
         "required": [
-          "name"
+          "name",
+          "identifier"
         ],
         "properties": {
           "name": {
@@ -5460,6 +5500,16 @@
             "description": "去除首尾空白后的项目名称。",
             "examples": [
               "Checkout"
+            ]
+          },
+          "identifier": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 32,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "小写字母、数字和短横线组成的稳定项目标识。",
+            "examples": [
+              "payment-center"
             ]
           },
           "description": {
@@ -5761,12 +5811,31 @@
           "extension"
         ]
       },
+      "IssueIdStatus": {
+        "title": "缺陷 ID 生成状态",
+        "description": "可读 ID 的异步生成状态；fallback 表示模型不可用时使用了本地兜底。",
+        "type": "string",
+        "enum": [
+          "pending",
+          "generated",
+          "fallback"
+        ],
+        "enumValueTitles": {
+          "pending": "生成中",
+          "generated": "模型已生成",
+          "fallback": "本地兜底"
+        },
+        "examples": [
+          "generated"
+        ]
+      },
       "Issue": {
         "title": "缺陷",
         "description": "包含页面上下文与处理状态的私有缺陷。",
         "type": "object",
         "required": [
           "id",
+          "idStatus",
           "userId",
           "projectId",
           "title",
@@ -5782,10 +5851,14 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "缺陷 ID。",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "公开缺陷 ID；创建时返回不含内部主键的临时标识，随后异步替换为项目标识与英文问题描述。",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
+          },
+          "idStatus": {
+            "$ref": "#/components/schemas/IssueIdStatus"
           },
           "userId": {
             "type": "string",
@@ -5874,7 +5947,7 @@
             "type": "string",
             "description": "交给 AI 的 Skill 安装与问题处理提示。",
             "examples": [
-              "请使用 Pinhere Skill 修复问题 iss_example。"
+              "请使用 Pinhere Skill 修复问题 payment-center-checkout-button-does-not-submit。"
             ]
           },
           "completedAt": {
@@ -5948,7 +6021,7 @@
                 "type": "string",
                 "description": "交给 AI 的 Skill 安装与问题处理提示。",
                 "examples": [
-                  "请使用 Pinhere Skill 修复问题 iss_example。"
+                  "请使用 Pinhere Skill 修复问题 payment-center-checkout-button-does-not-submit。"
                 ]
               }
             }
@@ -6005,10 +6078,14 @@
           },
           "attachmentId": {
             "type": "string",
-            "description": "尚未绑定的私有截图 ID。",
+            "description": "尚未绑定的私有截图 ID；不能与 screenshot 同时提交。",
             "examples": [
               "att_example"
             ]
+          },
+          "screenshot": {
+            "$ref": "#/components/schemas/AttachmentInput",
+            "description": "随缺陷一起上传的截图，可省去单独的截图上传请求；不能与 attachmentId 同时提交。"
           },
           "source": {
             "$ref": "#/components/schemas/IssueSource"
@@ -6065,7 +6142,7 @@
             "type": "string",
             "description": "缺陷 ID。",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           },
           "userId": {
@@ -6081,12 +6158,14 @@
             "enum": [
               "user",
               "api_token",
-              "extension"
+              "extension",
+              "system"
             ],
             "enumValueTitles": {
               "user": "网站用户",
               "api_token": "API token",
-              "extension": "浏览器扩展"
+              "extension": "浏览器扩展",
+              "system": "系统"
             },
             "examples": [
               "api_token"

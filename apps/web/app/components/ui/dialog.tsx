@@ -33,8 +33,8 @@ export function Dialog({ open, title, description, children, onClose }: {
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[100] grid place-items-center bg-[#1c252d]/45 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="dialog-title" tabIndex={-1} className="warm-panel w-full max-w-md rounded-2xl p-5 outline-none animate-rise sm:p-6">
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-[#1c252d]/52 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="dialog-title" tabIndex={-1} className="warm-panel max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl p-5 outline-none animate-rise sm:p-6">
         <div className="flex items-start justify-between gap-5">
           <div><h2 id="dialog-title" className="font-display text-2xl font-bold tracking-[-.035em]">{title}</h2>{description && <p className="mt-2 text-sm leading-6 text-[#69737c]">{description}</p>}</div>
           <button type="button" aria-label="Close" className="focus-ring grid size-10 shrink-0 place-items-center rounded-xl text-[#75808a] hover:bg-[#e8edf1]" onClick={onClose}><X size={17} /></button>
@@ -56,5 +56,5 @@ export function ConfirmDialog({ open, title, description, confirmLabel, cancelLa
   onConfirm: () => void;
   onClose: () => void;
 }) {
-  return <Dialog open={open} title={title} description={description} onClose={onClose}>{error && <p role="alert" className="mb-4 rounded-xl bg-[#f8eaea] px-3 py-2 text-xs text-[#a33f3f]">{error}</p>}<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" disabled={busy} onClick={onClose}>{cancelLabel}</Button><Button type="button" variant="danger" disabled={busy} onClick={onConfirm}>{busy ? "…" : confirmLabel}</Button></div></Dialog>;
+  return <Dialog open={open} title={title} description={description} onClose={onClose}>{error && <p role="alert" className="mb-4 rounded-xl bg-[#f8eaea] px-3 py-2 text-xs text-[#a33f3f]">{error}</p>}<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" disabled={busy} onClick={onClose}>{cancelLabel}</Button><Button type="button" variant="danger" pending={busy} pendingLabel={confirmLabel} onClick={onConfirm}>{confirmLabel}</Button></div></Dialog>;
 }

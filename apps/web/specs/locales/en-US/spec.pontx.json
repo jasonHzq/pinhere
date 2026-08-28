@@ -223,7 +223,7 @@
           }
         },
         "409": {
-          "description": "An origin is already assigned to another project.",
+          "description": "The project identifier or an origin is already assigned.",
           "schema": {
             "$ref": "#/components/schemas/ErrorResponse"
           },
@@ -266,7 +266,8 @@
               "Idempotency-Key": "example-project-create"
             },
             "body": {
-              "name": "Checkout",
+              "name": "支付中心",
+              "identifier": "payment-center",
               "description": "Checkout experience issues",
               "origins": [
                 "https://shop.example.com"
@@ -1198,7 +1199,7 @@
     "issues/createIssue": {
       "operationId": "createIssue",
       "summary": "Create issue",
-      "description": "Creates an issue and its issue.created outbox event in one transaction.",
+      "description": "Immediately creates an issue and its issue.created outbox event; a screenshot can be submitted in the same request, and readable-ID generation runs asynchronously.",
       "method": "POST",
       "path": "/issues",
       "consumes": [
@@ -1240,7 +1241,7 @@
       ],
       "responses": {
         "201": {
-          "description": "Issue created.",
+          "description": "Issue created; idStatus may still be pending.",
           "schema": {
             "type": "object",
             "description": "Created issue.",
@@ -1274,6 +1275,19 @@
         },
         "409": {
           "description": "Page origin does not match the project, or the screenshot is already used.",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        },
+        "413": {
+          "description": "The inline screenshot exceeds 2 MiB.",
           "schema": {
             "$ref": "#/components/schemas/ErrorResponse"
           },
@@ -1347,7 +1361,11 @@
                   "height": 44
                 }
               },
-              "attachmentId": "att_example",
+              "screenshot": {
+                "fileName": "checkout.webp",
+                "contentType": "image/webp",
+                "base64": "UklGRiQAAABXRUJQ"
+              },
               "source": "extension"
             }
           },
@@ -1378,9 +1396,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         }
@@ -1463,7 +1482,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {}
@@ -1497,9 +1516,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -1623,7 +1643,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -1659,9 +1679,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -1713,7 +1734,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -1747,9 +1768,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         }
@@ -1825,7 +1847,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {}
@@ -1857,9 +1879,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -1956,7 +1979,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -1990,9 +2013,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         }
@@ -2062,7 +2086,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {}
@@ -2222,9 +2246,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -2349,7 +2374,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -2388,9 +2413,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -2515,7 +2541,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -2552,9 +2578,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -2651,7 +2678,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -3579,7 +3606,7 @@
             "query": {},
             "headers": {},
             "body": {
-              "issueId": "iss_example",
+              "issueId": "payment-center-checkout-button-does-not-submit",
               "harness": "codex"
             }
           },
@@ -5159,9 +5186,10 @@
         "required": true,
         "schema": {
           "type": "string",
-          "description": "Issue ID.",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
           "examples": [
-            "iss_example"
+            "payment-center-checkout-button-does-not-submit"
           ]
         }
       },
@@ -5351,6 +5379,7 @@
           "id",
           "userId",
           "name",
+          "identifier",
           "description",
           "createdAt",
           "updatedAt",
@@ -5378,6 +5407,16 @@
             "description": "Project name.",
             "examples": [
               "Checkout"
+            ]
+          },
+          "identifier": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 32,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Stable project identifier used as the readable issue-ID prefix; immutable after creation.",
+            "examples": [
+              "payment-center"
             ]
           },
           "description": {
@@ -5450,7 +5489,8 @@
         "description": "Creates a project with optional origins.",
         "type": "object",
         "required": [
-          "name"
+          "name",
+          "identifier"
         ],
         "properties": {
           "name": {
@@ -5460,6 +5500,16 @@
             "description": "Project name after trimming surrounding whitespace.",
             "examples": [
               "Checkout"
+            ]
+          },
+          "identifier": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 32,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Stable project identifier made of lowercase letters, numbers, and dashes.",
+            "examples": [
+              "payment-center"
             ]
           },
           "description": {
@@ -5761,12 +5811,31 @@
           "extension"
         ]
       },
+      "IssueIdStatus": {
+        "title": "Issue ID generation status",
+        "description": "Async readable-ID generation status; fallback means a local identifier was used because the model was unavailable.",
+        "type": "string",
+        "enum": [
+          "pending",
+          "generated",
+          "fallback"
+        ],
+        "enumValueTitles": {
+          "pending": "Generating",
+          "generated": "Model generated",
+          "fallback": "Local fallback"
+        },
+        "examples": [
+          "generated"
+        ]
+      },
       "Issue": {
         "title": "Issue",
         "description": "Private issue containing page context and processing state.",
         "type": "object",
         "required": [
           "id",
+          "idStatus",
           "userId",
           "projectId",
           "title",
@@ -5782,10 +5851,14 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Public issue ID; creation returns a temporary identifier that hides the internal key, then asynchronously replaces it with the project identifier and English issue description.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
+          },
+          "idStatus": {
+            "$ref": "#/components/schemas/IssueIdStatus"
           },
           "userId": {
             "type": "string",
@@ -5874,7 +5947,7 @@
             "type": "string",
             "description": "Skill installation and issue handoff prompt for an AI.",
             "examples": [
-              "请使用 Pinhere Skill 修复问题 iss_example。"
+              "请使用 Pinhere Skill 修复问题 payment-center-checkout-button-does-not-submit。"
             ]
           },
           "completedAt": {
@@ -5948,7 +6021,7 @@
                 "type": "string",
                 "description": "Skill installation and issue handoff prompt for an AI.",
                 "examples": [
-                  "请使用 Pinhere Skill 修复问题 iss_example。"
+                  "请使用 Pinhere Skill 修复问题 payment-center-checkout-button-does-not-submit。"
                 ]
               }
             }
@@ -6005,10 +6078,14 @@
           },
           "attachmentId": {
             "type": "string",
-            "description": "ID of an unbound private screenshot.",
+            "description": "ID of an unbound private screenshot; cannot be submitted with screenshot.",
             "examples": [
               "att_example"
             ]
+          },
+          "screenshot": {
+            "$ref": "#/components/schemas/AttachmentInput",
+            "description": "Screenshot uploaded with the issue to avoid a separate attachment request; cannot be submitted with attachmentId."
           },
           "source": {
             "$ref": "#/components/schemas/IssueSource"
@@ -6065,7 +6142,7 @@
             "type": "string",
             "description": "Issue ID.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           },
           "userId": {
@@ -6081,12 +6158,14 @@
             "enum": [
               "user",
               "api_token",
-              "extension"
+              "extension",
+              "system"
             ],
             "enumValueTitles": {
               "user": "Website user",
               "api_token": "API token",
-              "extension": "Browser extension"
+              "extension": "Browser extension",
+              "system": "System"
             },
             "examples": [
               "api_token"

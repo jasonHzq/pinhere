@@ -3,8 +3,8 @@ import { PINHERE_SKILL_INSTALL_URL, PINHERE_SKILL_URL, repairPrompt } from "./re
 
 describe("repairPrompt", () => {
   it("hands off the exact issue and the installable skill", () => {
-    const prompt = repairPrompt("iss_example");
-    expect(prompt).toContain("iss_example");
+    const prompt = repairPrompt("payment-center-checkout-button-broken");
+    expect(prompt).toContain("payment-center-checkout-button-broken");
     expect(prompt).toContain(PINHERE_SKILL_INSTALL_URL);
     expect(prompt).toContain(PINHERE_SKILL_URL);
     expect(prompt).toContain("Pinhere CLI");

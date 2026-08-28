@@ -1,0 +1,24 @@
+# Pinhere Chrome Web Store submission checklist
+
+- [x] Manifest V3 package
+- [x] Narrow single purpose
+- [x] Permission justifications drafted
+- [x] Prominent in-extension disclosure before authorization/capture
+- [x] Public privacy policy route implemented
+- [x] Public support route implemented
+- [x] 128×128 icon included in the package
+- [x] 1280×800 store screenshots prepared
+- [x] 440×280 small promotional tile prepared
+- [x] Detailed Chinese and English listing copy prepared
+- [x] Deploy privacy/support routes to production
+- [ ] Verify `pinhere.dev` in Google Search Console for the publisher URL
+- [x] Sign in/register the Chrome Web Store developer account and pay the one-time fee
+- [x] Declare the publisher as a trader and submit a mainland China individual verification profile
+- [ ] Wait for Google Payments trader verification to finish
+- [ ] Add and verify a public contact email (do not use `support@pinhere.dev` until inbound mail is configured)
+- [ ] Create item and upload `apps/web/public/downloads/pinhere-extension-v0.1.9.zip`
+- [ ] Complete Store listing, Privacy practices, and Distribution tabs
+- [ ] Choose public visibility and all applicable regions
+- [ ] Submit for review
+- [ ] After approval, replace the manual ZIP CTA with the Chrome Web Store item URL
+- [ ] Add the Chrome Web Store item ID and URL to `LAUNCH-PLAYBOOK.md`

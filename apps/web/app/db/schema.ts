@@ -82,6 +82,7 @@ export const authRateLimits = pgTable("auth_rate_limit", {
 
 export const issueStatus = pgEnum("issue_status", ["open", "in_progress", "done"]);
 export const issueSource = pgEnum("issue_source", ["extension", "web", "api"]);
+export const issueReadableIdStatus = pgEnum("issue_readable_id_status", ["pending", "generated", "fallback"]);
 export const deliveryStatus = pgEnum("delivery_status", ["pending", "delivered", "failed"]);
 export const agentHarness = pgEnum("agent_harness", ["codex"]);
 export const agentRunStatus = pgEnum("agent_run_status", ["queued", "running", "waiting", "succeeded", "failed", "cancelled"]);
@@ -93,12 +94,16 @@ export const projects = pgTable(
     id: text().primaryKey(),
     userId: text().notNull().references(() => authUsers.id, { onDelete: "cascade" }),
     name: text().notNull(),
+    identifier: text().notNull(),
     description: text().notNull().default(""),
     createdAt: now(),
     updatedAt: now(),
     version: integer().notNull().default(1)
   },
-  (table) => [index("project_user_idx").on(table.userId, table.updatedAt)]
+  (table) => [
+    index("project_user_idx").on(table.userId, table.updatedAt),
+    uniqueIndex("project_user_identifier_unique").on(table.userId, table.identifier)
+  ]
 );
 
 export const projectOrigins = pgTable(
@@ -130,6 +135,8 @@ export const issues = pgTable(
   "issue",
   {
     id: text().primaryKey(),
+    readableId: text(),
+    readableIdStatus: issueReadableIdStatus().notNull().default("pending"),
     userId: text().notNull().references(() => authUsers.id, { onDelete: "cascade" }),
     projectId: text().notNull().references(() => projects.id, { onDelete: "cascade" }),
     title: text().notNull(),
@@ -151,7 +158,22 @@ export const issues = pgTable(
   (table) => [
     index("issue_project_status_created_idx").on(table.projectId, table.status, table.createdAt),
     index("issue_user_updated_idx").on(table.userId, table.updatedAt),
+    uniqueIndex("issue_user_readable_id_unique").on(table.userId, table.readableId),
     uniqueIndex("issue_attachment_unique").on(table.attachmentId)
+  ]
+);
+
+export const issueIdentifierAliases = pgTable(
+  "issue_identifier_alias",
+  {
+    userId: text().notNull().references(() => authUsers.id, { onDelete: "cascade" }),
+    identifier: text().notNull(),
+    issueId: text().notNull().references(() => issues.id, { onDelete: "cascade" }),
+    createdAt: now()
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.identifier] }),
+    index("issue_identifier_alias_issue_idx").on(table.issueId)
   ]
 );
 

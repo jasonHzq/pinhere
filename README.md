@@ -2,6 +2,10 @@
 
 Pinhere turns a selected DOM element and annotated screenshot into a structured defect that an AI coding agent can claim through a stable API.
 
+New issues receive a project-prefixed, lowercase English readable ID asynchronously through Qwen, so issue creation stays fast. The temporary creation ID remains a permanent lookup alias for compatibility.
+
+Projects have an arbitrary display name and an immutable 3–32 character identifier made of lowercase letters, numbers, and single dashes. A Chinese display name is supported; choose a short English identifier such as `payment-center`. Public issue IDs use one URL-safe dash-case string, for example `payment-center-checkout-button-does-not-submit`.
+
 ## Repository
 
 - `apps/web`: full-stack React Router application, Hono API, Drizzle schema, PontxSpec and webhook worker.
@@ -36,16 +40,26 @@ For an AI-assisted, one-session queue repair, install `skills/pinhere/SKILL.md` 
 For unattended Codex repair:
 
 ```bash
-npm install --global @pinhere/cli
+npm install --global pinhere
 pinhere auth login
 pinhere projects list
-pinhere agent bind --project prj_example --path /absolute/path/to/repository --mode yolo
+pinhere agent bind --project pinhere --path /absolute/path/to/repository --mode yolo
+pinhere agent doctor
 pinhere agent service install
 ```
 
-`yolo` is the default mode. Use `--mode workspace` for sandboxed automatic repair. `--mode confirm` asks in an attached terminal and safely declines approval requests in a headless service. The service creates a native Codex thread for every issue; its run record appears on the issue page and can reopen the conversation through `codex://threads/<thread-id>`.
+Project commands use the public project identifier, such as `pinhere`; internal project IDs are never needed. `yolo` is the default mode. Use `--mode workspace` for sandboxed automatic repair. `--mode confirm` asks in an attached terminal and safely declines approval requests in a headless service. The service creates a native Codex thread for every issue; its run record appears on the issue page and can reopen the conversation through `codex://threads/<thread-id>`.
 
-For local CLI development, set `PINHERE_BASE_URL=http://localhost:5173` before pairing and run commands with `pnpm --filter @pinhere/cli dev -- ...`.
+`pinhere agent doctor` discovers Codex across supported installation layouts and accepts a candidate only after both its version command and a real app-server protocol handshake succeed. Service installation persists that verified execution plan rather than relying on a login shell's PATH.
+
+The service controls the single machine-wide daemon. Pause or resume one bound project without stopping the others:
+
+```bash
+pinhere agent pause --project pinhere
+pinhere agent resume --project pinhere
+```
+
+For local CLI development, set `PINHERE_BASE_URL=http://localhost:5173` before pairing and run commands with `pnpm --filter pinhere dev -- ...`.
 
 ## Validation
 

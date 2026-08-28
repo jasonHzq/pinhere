@@ -8,16 +8,63 @@ type CropperProps = {
   onChange: (value: Rect) => void;
   className?: string;
   imageAlt?: string;
+  selectionTone?: "brand" | "danger";
   style?: CSSProperties;
 };
 
-export function Cropper({ src, crop, onChange, className, imageAlt = "缺陷截图，可拖动重新裁剪", style }: CropperProps) {
-  const container = useRef<HTMLDivElement>(null); const image = useRef<HTMLImageElement>(null); const [drawing, setDrawing] = useState<{ x: number; y: number } | null>(null); const [display, setDisplay] = useState<Rect>(crop); const [naturalSize, setNaturalSize] = useState({ width: 1, height: 1 });
-  const toNatural = (event: React.PointerEvent) => { const rect = container.current!.getBoundingClientRect(); return { x: (event.clientX - rect.left) * (image.current!.naturalWidth / rect.width), y: (event.clientY - rect.top) * (image.current!.naturalHeight / rect.height) }; };
+export function Cropper({ src, crop, onChange, className, imageAlt = "缺陷截图，可拖动重新裁剪", selectionTone = "brand", style }: CropperProps) {
+  const container = useRef<HTMLDivElement>(null);
+  const image = useRef<HTMLImageElement>(null);
+  const [drawing, setDrawing] = useState<{ x: number; y: number } | null>(null);
+  const [display, setDisplay] = useState<Rect>(crop);
+  const [naturalSize, setNaturalSize] = useState({ width: 1, height: 1 });
+  const toNatural = (event: React.PointerEvent) => {
+    const rect = container.current!.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * (image.current!.naturalWidth / rect.width),
+      y: (event.clientY - rect.top) * (image.current!.naturalHeight / rect.height)
+    };
+  };
   useEffect(() => setDisplay(crop), [crop]);
   function start(event: React.PointerEvent) { const point = toNatural(event); setDrawing(point); setDisplay({ x: point.x, y: point.y, width: 1, height: 1 }); event.currentTarget.setPointerCapture(event.pointerId); }
   function move(event: React.PointerEvent) { if (!drawing) return; const point = toNatural(event); setDisplay({ x: Math.min(drawing.x, point.x), y: Math.min(drawing.y, point.y), width: Math.abs(point.x - drawing.x), height: Math.abs(point.y - drawing.y) }); }
   function end() { if (display.width > 20 && display.height > 20) onChange(display); setDrawing(null); }
+  function cancel() { setDisplay(crop); setDrawing(null); }
   const naturalWidth = naturalSize.width; const naturalHeight = naturalSize.height;
-  return <div ref={container} style={style} className={cn("relative touch-none cursor-crosshair overflow-hidden rounded-xl border border-[#cbd5e1] bg-[#172033] shadow-[0_8px_20px_rgba(28,40,58,.1)]", className)} onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end}><img ref={image} src={src} onLoad={(event) => { setNaturalSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight }); setDisplay({ ...crop }); }} className="block w-full select-none" draggable={false} alt={imageAlt} /><div className="pointer-events-none absolute border-2 border-[#6f91ff] bg-[#315efb18] shadow-[0_0_0_999px_rgba(12,20,35,.48)]" style={{ left: `${display.x / naturalWidth * 100}%`, top: `${display.y / naturalHeight * 100}%`, width: `${display.width / naturalWidth * 100}%`, height: `${display.height / naturalHeight * 100}%` }} /></div>;
+  const selectionClass = selectionTone === "danger"
+    ? "border-[3px] border-[#ef4444] bg-[#ef444414] shadow-[0_0_0_999px_rgba(12,20,35,.52),0_0_0_1px_rgba(255,255,255,.72)]"
+    : "border-2 border-[#6f91ff] bg-[#315efb18] shadow-[0_0_0_999px_rgba(12,20,35,.48)]";
+
+  return (
+    <div
+      ref={container}
+      style={style}
+      className={cn("relative touch-none cursor-crosshair overflow-hidden rounded-xl border border-[#cbd5e1] bg-[#172033] shadow-[0_8px_20px_rgba(28,40,58,.1)]", className)}
+      onPointerDown={start}
+      onPointerMove={move}
+      onPointerUp={end}
+      onPointerCancel={cancel}
+    >
+      <img
+        ref={image}
+        src={src}
+        onLoad={(event) => {
+          setNaturalSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight });
+          setDisplay({ ...crop });
+        }}
+        className="block w-full select-none"
+        draggable={false}
+        alt={imageAlt}
+      />
+      <div
+        className={cn("pointer-events-none absolute", selectionClass)}
+        style={{
+          left: `${display.x / naturalWidth * 100}%`,
+          top: `${display.y / naturalHeight * 100}%`,
+          width: `${display.width / naturalWidth * 100}%`,
+          height: `${display.height / naturalHeight * 100}%`
+        }}
+      />
+    </div>
+  );
 }

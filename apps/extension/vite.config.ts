@@ -25,6 +25,7 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         input: {
           popup: resolve(import.meta.dirname, "popup.html"),
+          captureEditor: resolve(import.meta.dirname, "capture-editor.html"),
           imageEditor: resolve(import.meta.dirname, "image-editor.html"),
           background: resolve(import.meta.dirname, "src/background.ts")
         },

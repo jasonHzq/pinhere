@@ -1,27 +1,51 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowUpRight, Github, LoaderCircle, Mail, MoveLeft, ShieldCheck } from "lucide-react";
 import type { MetaFunction } from "react-router";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, redirect, useParams, useSearchParams } from "react-router";
+import type { Route } from "./+types/sign-in";
 import { Logo } from "~/components/logo";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { authClient } from "~/lib/auth-client";
+import { safeReturnTo } from "~/lib/auth-navigation";
+import { getPrincipal } from "~/lib/principal.server";
 
 export const meta: MetaFunction = ({ params }) => [
   { title: params.locale === "en" ? "Sign in | Pinhere" : "登录 | Pinhere" },
   { name: "robots", content: "noindex, nofollow" }
 ];
 
+export async function loader({ request, params }: Route.LoaderArgs) {
+  const locale = params.locale === "en" ? "en" : "zh-CN";
+  const principal = await getPrincipal(request);
+  if (principal) {
+    const url = new URL(request.url);
+    throw redirect(safeReturnTo(url.searchParams.get("returnTo"), locale));
+  }
+  return null;
+}
+
 export default function SignIn() {
   const { locale = "zh-CN" } = useParams();
   const [params] = useSearchParams();
   const en = locale === "en";
-  const callbackURL = params.get("returnTo") ?? `/${locale}/app`;
+  const callbackURL = safeReturnTo(params.get("returnTo"), locale);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "sent" | "error">("idle");
   const [githubBusy, setGithubBusy] = useState(false);
   const [githubError, setGithubError] = useState("");
+
+  useEffect(() => {
+    // This component only renders after the server has confirmed there is no
+    // active session. Remember that result so later homepage visits can skip
+    // the redundant protected-route redirect without guessing for old users.
+    try {
+      localStorage.setItem("pinhere:authenticated", "0");
+    } catch {
+      // Authentication remains server-authoritative when storage is blocked.
+    }
+  }, []);
 
   async function signInWithGithub() {
     setGithubBusy(true);
@@ -59,11 +83,11 @@ export default function SignIn() {
         </section>
         <Card className="warm-panel w-full p-6 sm:p-8">
           <div className="mb-7"><span className="font-mono text-[10px] font-medium uppercase tracking-[.16em] text-[#5f7180]">Personal workspace</span><h1 className="font-display mt-3 text-3xl font-bold tracking-[-.045em] lg:text-4xl">{en ? "Welcome back" : "欢迎回来"}</h1><p className="mt-2 text-sm leading-6 text-[#69737c]">{en ? "One account for the website and Chrome extension." : "网站与 Chrome 扩展使用同一个个人账号。"}</p></div>
-          <Button className="w-full" variant="outline" type="button" disabled={githubBusy} onClick={() => void signInWithGithub()}>{githubBusy ? <LoaderCircle className="animate-spin" size={17} /> : <Github size={17} />}{en ? "Continue with GitHub" : "使用 GitHub 登录"}<ArrowUpRight className="ml-auto" size={15} /></Button>
+          <Button data-analytics-event="sign_in_method_click" data-analytics-method="github" className="w-full" variant="outline" type="button" disabled={githubBusy} onClick={() => void signInWithGithub()}>{githubBusy ? <LoaderCircle className="animate-spin" size={17} /> : <Github size={17} />}{en ? "Continue with GitHub" : "使用 GitHub 登录"}<ArrowUpRight className="ml-auto" size={15} /></Button>
           {githubError && <p className="mt-3 text-xs leading-5 text-[#bb2d3b]">{githubError}</p>}
           <div className="my-6 flex items-center gap-3"><span className="h-px flex-1 bg-[#d8dee4]" /><span className="font-mono text-[9px] tracking-[.12em] text-[#7d8790]">OR</span><span className="h-px flex-1 bg-[#d8dee4]" /></div>
           {status === "sent" ? <div role="status" className="rounded-2xl border border-[#bfd0d9] bg-[#eaf1f5] p-4 text-sm leading-6 text-[#365466]"><strong>{en ? "Check your inbox." : "请检查邮箱。"}</strong><br /><span className="text-[#5d7180]">{en ? "The one-time link expires in 10 minutes." : "一次性登录链接将在 10 分钟后过期。"}</span></div> : (
-            <form onSubmit={sendLink} className="space-y-3"><label className="block text-xs font-semibold" htmlFor="email">{en ? "Email address" : "邮箱地址"}</label><Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" required /><Button className="w-full" disabled={status === "loading"}>{status === "loading" ? <LoaderCircle className="animate-spin" size={17} /> : <Mail size={17} />}{en ? "Email me a sign-in link" : "发送登录链接"}</Button>{status === "error" && <p role="alert" className="text-xs text-[#a93e3e]">{en ? "Could not send the link. Try again." : "登录链接发送失败，请重试。"}</p>}</form>
+            <form onSubmit={sendLink} className="space-y-3"><label className="block text-xs font-semibold" htmlFor="email">{en ? "Email address" : "邮箱地址"}</label><Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" required /><Button data-analytics-event="sign_in_method_click" data-analytics-method="email" className="w-full" disabled={status === "loading"}>{status === "loading" ? <LoaderCircle className="animate-spin" size={17} /> : <Mail size={17} />}{en ? "Email me a sign-in link" : "发送登录链接"}</Button>{status === "error" && <p role="alert" className="text-xs text-[#a93e3e]">{en ? "Could not send the link. Try again." : "登录链接发送失败，请重试。"}</p>}</form>
           )}
         </Card>
       </div>
