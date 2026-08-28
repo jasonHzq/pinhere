@@ -65,9 +65,9 @@ describe("CLI identifier-only flow", () => {
     const shortHelp = await run("-h");
     const longHelp = await run("--help");
     const shortVersion = await run("-V");
-    expect(shortHelp.stdout).toContain("Pinhere CLI 0.2.4");
+    expect(shortHelp.stdout).toContain("Pinhere CLI 0.2.5");
     expect(shortHelp.stdout).toBe(longHelp.stdout);
-    expect(shortVersion.stdout).toBe("0.2.4\n");
+    expect(shortVersion.stdout).toBe("0.2.5\n");
   });
 
   it("prints pretty project JSON without internal IDs", async () => {

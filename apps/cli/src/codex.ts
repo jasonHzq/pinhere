@@ -6,11 +6,17 @@ import type { AgentMode } from "./config.js";
 
 type RpcResult = { id?: number; result?: unknown; error?: { message?: string }; method?: string; params?: Record<string, unknown> };
 type CodexTurn = { id?: string; status?: string; error?: { message?: string } };
-type CodexHarnessOptions = { turnPollIntervalMs?: number; turnTimeoutMs?: number };
+type CodexHarnessOptions = {
+  turnPollIntervalMs?: number;
+  turnTimeoutMs?: number;
+  turnReadFailureLimit?: number;
+  onObservationError?: (error: Error, consecutiveFailures: number, failureLimit: number) => void;
+};
 
 function terminalTurnError(turn: CodexTurn) {
   if (turn.status === "failed") return new Error(turn.error?.message ?? "Codex turn failed");
   if (turn.status === "interrupted") return new Error(turn.error?.message ?? "Codex turn was interrupted");
+  if (turn.status === "cancelled") return new Error(turn.error?.message ?? "Codex turn was cancelled");
   return undefined;
 }
 
@@ -75,7 +81,7 @@ export class CodexHarness {
       const error = new Error(`Codex App Server exited (${code ?? "signal"})${stderr ? `: ${stderr.trim()}` : ""}`);
       failProcess(error);
     });
-    await this.request("initialize", { clientInfo: { name: "pinhere", title: "Pinhere", version: "0.2.4" } }, 10_000);
+    await this.request("initialize", { clientInfo: { name: "pinhere", title: "Pinhere", version: "0.2.5" } }, 10_000);
     this.notify("initialized", {});
   }
 
@@ -146,6 +152,16 @@ export class CodexHarness {
     return new Promise<void>((resolve, reject) => {
       let settled = false;
       let pollInFlight = false;
+      let consecutiveReadFailures = 0;
+      const readFailureLimit = Math.max(1, this.options.turnReadFailureLimit ?? 3);
+      const recordObservationFailure = (cause: unknown) => {
+        const error = cause instanceof Error ? cause : new Error(String(cause));
+        consecutiveReadFailures += 1;
+        this.options.onObservationError?.(error, consecutiveReadFailures, readFailureLimit);
+        if (consecutiveReadFailures >= readFailureLimit) {
+          finish(new Error(`Codex App Server thread/read failed ${consecutiveReadFailures} consecutive times: ${error.message}`));
+        }
+      };
       const finish = (error?: Error) => {
         if (settled) return;
         settled = true;
@@ -156,7 +172,7 @@ export class CodexHarness {
         if (error) reject(error); else resolve();
       };
       const observe = (turn: CodexTurn | undefined) => {
-        if (!turn || turn.id !== turnId || !["completed", "interrupted", "failed"].includes(turn.status ?? "")) return;
+        if (!turn || turn.id !== turnId || !["completed", "interrupted", "failed", "cancelled"].includes(turn.status ?? "")) return;
         finish(terminalTurnError(turn));
       };
       const listener = (event: RpcResult) => {
@@ -171,8 +187,16 @@ export class CodexHarness {
           "thread/read",
           { threadId, includeTurns: true },
           10_000
-        ).then((read) => observe(read.thread?.turns?.find((turn) => turn.id === turnId)))
-          .catch(() => undefined)
+        ).then((read) => {
+          const turn = read.thread?.turns?.find((candidate) => candidate.id === turnId);
+          if (!turn) {
+            recordObservationFailure(new Error(`turn ${turnId} was missing from thread ${threadId}`));
+            return;
+          }
+          consecutiveReadFailures = 0;
+          observe(turn);
+        })
+          .catch(recordObservationFailure)
           .finally(() => { pollInFlight = false; });
       }, this.options.turnPollIntervalMs ?? 5_000);
       pollTimer.unref();

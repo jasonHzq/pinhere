@@ -96,6 +96,7 @@ export const projects = pgTable(
     name: text().notNull(),
     identifier: text().notNull(),
     description: text().notNull().default(""),
+    agentConcurrency: integer().notNull().default(1),
     createdAt: now(),
     updatedAt: now(),
     version: integer().notNull().default(1)

@@ -9,7 +9,9 @@ import { CodexHarness } from "./codex.js";
 import { configDir, readConfig, type Binding } from "./config.js";
 
 const execFileAsync = promisify(execFile);
-const VERSION = "0.2.4";
+const VERSION = "0.2.5";
+export const AGENT_HEARTBEAT_INTERVAL_MS = 30_000;
+export const MAX_PROJECT_CONCURRENCY = 8;
 
 type Issue = {
   id: string; projectId: string; title: string; description: string; pageUrl: string;
@@ -18,8 +20,37 @@ type Issue = {
 };
 
 type AgentRun = { id: string; externalThreadId?: string | null; status: string };
+type ProjectSettings = { id: string; agentConcurrency?: number | null };
+type WorkerApi = Pick<PinhereApi, "get" | "post" | "patch">;
+type ActiveJobs = Map<string, Set<Promise<void>>>;
+type IssueProcessor = (api: PinhereApi, binding: Binding, issue: Issue, launch: CodexLaunch) => Promise<void>;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function serviceLog(scope: string, message: string) {
+  process.stderr.write(`[${new Date().toISOString()}] Pinhere ${scope}: ${message}\n`);
+}
+
+export function projectConcurrency(value: number | null | undefined) {
+  if (!Number.isInteger(value)) return 1;
+  return Math.min(Math.max(value!, 1), MAX_PROJECT_CONCURRENCY);
+}
+
+export function startAgentHeartbeat(
+  send: () => Promise<unknown>,
+  { intervalMs = AGENT_HEARTBEAT_INTERVAL_MS, onError = (error: Error) => serviceLog("agent heartbeat", error.message) }:
+  { intervalMs?: number; onError?: (error: Error) => void } = {}
+) {
+  let inFlight = false;
+  const timer = setInterval(() => {
+    if (inFlight) return;
+    inFlight = true;
+    void send().catch((cause) => onError(cause instanceof Error ? cause : new Error(String(cause))))
+      .finally(() => { inFlight = false; });
+  }, intervalMs);
+  timer.unref();
+  return () => clearInterval(timer);
+}
 
 async function notify(title: string, message: string, threadId?: string) {
   const url = threadId ? `codex://threads/${encodeURIComponent(threadId)}` : undefined;
@@ -46,11 +77,15 @@ export function repairPrompt(issue: Issue) {
 
 async function processIssue(api: PinhereApi, binding: Binding, issue: Issue, launch: CodexLaunch) {
   const run = await api.post<AgentRun>("/agent-runs", { issueId: issue.id, harness: "codex" });
-  const codex = new CodexHarness(launch);
+  const codex = new CodexHarness(launch, {
+    onObservationError: (error, failures, limit) => {
+      serviceLog(`Codex observation ${issue.id}`, `${error.message} (${failures}/${limit})`);
+    }
+  });
   let threadId: string | undefined;
   const heartbeat = setInterval(() => {
     void api.post(issuePath(issue.id, "/heartbeat"), {}).catch((error) => {
-      process.stderr.write(`Pinhere lease heartbeat: ${error instanceof Error ? error.message : String(error)}\n`);
+      serviceLog(`lease heartbeat ${issue.id}`, error instanceof Error ? error.message : String(error));
     });
   }, 5 * 60_000);
   heartbeat.unref();
@@ -69,10 +104,17 @@ async function processIssue(api: PinhereApi, binding: Binding, issue: Issue, lau
     await notify("Pinhere repair completed", issue.title, threadId);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`Pinhere harness ${issue.id}: ${message}\n`);
-    await api.patch(`/agent-runs/${run.id}`, { status: "failed", error: message }).catch(() => undefined);
-    const current = await api.get<Issue>(issuePath(issue.id)).catch(() => null);
-    if (current?.status === "in_progress") await api.post(issuePath(issue.id, "/release"), { reason: `Codex harness failed: ${message.slice(0, 1_500)}` }).catch(() => undefined);
+    serviceLog(`harness ${issue.id}`, message);
+    await api.patch(`/agent-runs/${run.id}`, { status: "failed", error: message }).catch((cause) => {
+      serviceLog(`run cleanup ${run.id}`, cause instanceof Error ? cause.message : String(cause));
+    });
+    const current = await api.get<Issue>(issuePath(issue.id)).catch((cause) => {
+      serviceLog(`issue cleanup ${issue.id}`, cause instanceof Error ? cause.message : String(cause));
+      return null;
+    });
+    if (current?.status === "in_progress") await api.post(issuePath(issue.id, "/release"), { reason: `Codex harness failed: ${message.slice(0, 1_500)}` }).catch((cause) => {
+      serviceLog(`issue release ${issue.id}`, cause instanceof Error ? cause.message : String(cause));
+    });
     await notify("Pinhere repair needs attention", `${issue.title}: ${message}`, threadId);
     throw error;
   } finally {
@@ -81,11 +123,29 @@ async function processIssue(api: PinhereApi, binding: Binding, issue: Issue, lau
   }
 }
 
-async function processBinding(api: PinhereApi, binding: Binding, launch: CodexLaunch) {
-  const result = await api.post<{ issue: Issue | null }>("/issues/claim-next", { projectId: binding.projectId });
-  if (!result.issue) return false;
-  await processIssue(api, binding, result.issue, launch);
-  return true;
+export async function scheduleBinding(
+  api: WorkerApi,
+  binding: Binding,
+  concurrency: number,
+  launch: CodexLaunch,
+  activeJobs: Set<Promise<void>>,
+  processor: IssueProcessor = processIssue
+) {
+  let claimed = 0;
+  const available = Math.max(0, projectConcurrency(concurrency) - activeJobs.size);
+  for (let slot = 0; slot < available; slot += 1) {
+    const result = await api.post<{ issue: Issue | null }>("/issues/claim-next", { projectId: binding.projectId });
+    if (!result.issue) break;
+    claimed += 1;
+    let job!: Promise<void>;
+    job = processor(api as PinhereApi, binding, result.issue, launch)
+      .catch((cause) => {
+        serviceLog(`project ${binding.projectIdentifier ?? binding.projectId}`, cause instanceof Error ? cause.message : String(cause));
+      })
+      .finally(() => { activeJobs.delete(job); });
+    activeJobs.add(job);
+  }
+  return claimed;
 }
 
 export function runnableBindings(bindings: Binding[]) {
@@ -95,32 +155,61 @@ export function runnableBindings(bindings: Binding[]) {
 export async function runWorker({ once = false }: { once?: boolean } = {}) {
   let backoff = 30_000;
   let launch: CodexLaunch | undefined;
-  for (;;) {
-    const config = await readConfig();
-    if (!config.token || !config.agentId) throw new Error("Pair the CLI first: pinhere auth login");
-    if (!config.bindings.length) throw new Error("Bind at least one project: pinhere agent bind --project <identifier> --path <repo>");
-    const api = new PinhereApi(config);
-    try {
-      if (!launch && runnableBindings(config.bindings).length) {
-        const configured = launchFromEnvironment();
-        launch = configured ? await probeCodexCandidate(configured) : await resolveCodexLaunch();
-        process.stdout.write(`Pinhere Codex ready: ${launch.version} (${launch.source}, ${launch.executable})\n`);
+  const activeByProject: ActiveJobs = new Map();
+  let stopHeartbeat: (() => void) | undefined;
+  try {
+    for (;;) {
+      const config = await readConfig();
+      if (!config.token || !config.agentId) throw new Error("Pair the CLI first: pinhere auth login");
+      if (!config.bindings.length) throw new Error("Bind at least one project: pinhere agent bind --project <identifier> --path <repo>");
+      const api = new PinhereApi(config);
+      try {
+        if (!stopHeartbeat) {
+          await api.post("/agents/heartbeat", { version: VERSION });
+          stopHeartbeat = startAgentHeartbeat(async () => {
+            const heartbeatConfig = await readConfig();
+            if (!heartbeatConfig.token || !heartbeatConfig.agentId) throw new Error("CLI is no longer paired");
+            await new PinhereApi(heartbeatConfig).post("/agents/heartbeat", { version: VERSION });
+          });
+        }
+        const bindings = runnableBindings(config.bindings);
+        if (!launch && bindings.length) {
+          const configured = launchFromEnvironment();
+          launch = configured ? await probeCodexCandidate(configured) : await resolveCodexLaunch();
+          process.stdout.write(`Pinhere Codex ready: ${launch.version} (${launch.source}, ${launch.executable})\n`);
+        }
+        const projectRows = await api.get<ProjectSettings[]>("/projects");
+        const projectSettings = new Map(projectRows.map((project) => [project.id, project]));
+        const schedules = await Promise.allSettled(bindings.map(async (binding) => {
+          let activeJobs = activeByProject.get(binding.projectId);
+          if (!activeJobs) {
+            activeJobs = new Set();
+            activeByProject.set(binding.projectId, activeJobs);
+          }
+          const concurrency = projectConcurrency(projectSettings.get(binding.projectId)?.agentConcurrency);
+          return scheduleBinding(api, binding, concurrency, launch!, activeJobs);
+        }));
+        let claimed = 0;
+        schedules.forEach((result, index) => {
+          if (result.status === "fulfilled") claimed += result.value;
+          else serviceLog(`project ${bindings[index]?.projectIdentifier ?? bindings[index]?.projectId ?? "unknown"}`, result.reason instanceof Error ? result.reason.message : String(result.reason));
+        });
+        backoff = 30_000;
+        if (once) {
+          await Promise.allSettled([...activeByProject.values()].flatMap((jobs) => [...jobs]));
+          return;
+        }
+        await sleep(claimed > 0 ? 250 : config.pollIntervalSeconds * 1_000);
+      } catch (error) {
+        if (once) throw error;
+        serviceLog("worker", error instanceof Error ? error.message : String(error));
+        launch = undefined;
+        await sleep(backoff + Math.floor(Math.random() * 500));
+        backoff = Math.min(backoff * 2, 15 * 60_000);
       }
-      await api.post("/agents/heartbeat", { version: VERSION });
-      let worked = false;
-      for (const binding of runnableBindings(config.bindings)) {
-        worked = await processBinding(api, binding, launch!) || worked;
-      }
-      backoff = 30_000;
-      if (once) return;
-      await sleep(worked ? 250 : config.pollIntervalSeconds * 1_000);
-    } catch (error) {
-      if (once) throw error;
-      process.stderr.write(`Pinhere worker: ${error instanceof Error ? error.message : String(error)}\n`);
-      launch = undefined;
-      await sleep(backoff + Math.floor(Math.random() * 500));
-      backoff = Math.min(backoff * 2, 15 * 60_000);
     }
+  } finally {
+    stopHeartbeat?.();
   }
 }
 

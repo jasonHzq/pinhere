@@ -38,6 +38,7 @@ const projectInput = z.object({
   name: z.string().trim().min(1).max(100),
   identifier: z.string().trim().min(3).max(32).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Project identifier must use lowercase letters, numbers, and single dashes"),
   description: z.string().max(1_000).default(""),
+  agentConcurrency: z.number().int().min(1).max(8).default(1),
   origins: z.array(z.string()).max(50).default([])
 });
 const pairingInput = z.object({
@@ -136,11 +137,11 @@ app.post("/api/v1/projects", async (c) => {
   try {
     if (normalized.length) {
       await db.batch([
-        db.insert(projects).values({ id, userId: p.userId, name: body.name, identifier: body.identifier, description: body.description }),
+        db.insert(projects).values({ id, userId: p.userId, name: body.name, identifier: body.identifier, description: body.description, agentConcurrency: body.agentConcurrency }),
         db.insert(projectOrigins).values(normalized.map((origin) => ({ projectId: id, userId: p.userId, origin })))
       ]);
     } else {
-      await db.insert(projects).values({ id, userId: p.userId, name: body.name, identifier: body.identifier, description: body.description });
+      await db.insert(projects).values({ id, userId: p.userId, name: body.name, identifier: body.identifier, description: body.description, agentConcurrency: body.agentConcurrency });
     }
   } catch (error) {
     if (isUniqueViolation(error)) throw new ApiError("project_identifier_or_origin_taken", "This project identifier or website is already assigned", 409);

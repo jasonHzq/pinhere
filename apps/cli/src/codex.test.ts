@@ -59,4 +59,108 @@ lines.on("line", (line) => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it("surfaces repeated thread observation failures instead of waiting for the turn timeout", async () => {
+    const root = await mkdtemp(join(tmpdir(), "pinhere-codex-read-failure-"));
+    const executable = join(root, "codex");
+    await writeFile(executable, `#!${process.execPath}
+const readline = require("node:readline");
+const lines = readline.createInterface({ input: process.stdin });
+lines.on("line", (line) => {
+  const message = JSON.parse(line);
+  if (message.id === undefined) return;
+  let result = {};
+  if (message.method === "thread/start") result = { thread: { id: "thread_test" } };
+  if (message.method === "turn/start") result = { turn: { id: "turn_test", status: "inProgress" } };
+  if (message.method === "thread/read") {
+    process.stdout.write(JSON.stringify({ id: message.id, error: { message: "thread storage unavailable" } }) + "\\n");
+    return;
+  }
+  process.stdout.write(JSON.stringify({ id: message.id, result }) + "\\n");
+});
+`);
+    await chmod(executable, 0o700);
+    const observations: number[] = [];
+    const harness = new CodexHarness(
+      { executable, searchPath: "/usr/bin:/bin", source: "override", version: "test" },
+      {
+        turnPollIntervalMs: 10,
+        turnTimeoutMs: 5_000,
+        turnReadFailureLimit: 3,
+        onObservationError: (_error, failures) => observations.push(failures)
+      }
+    );
+    try {
+      const threadId = await harness.createThread(root);
+      await expect(harness.runTurn(threadId, root, "test", "yolo")).rejects.toThrow(
+        "thread/read failed 3 consecutive times: thread storage unavailable"
+      );
+      expect(observations).toEqual([1, 2, 3]);
+    } finally {
+      harness.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("treats cancelled turns as terminal failures", async () => {
+    const root = await mkdtemp(join(tmpdir(), "pinhere-codex-cancelled-"));
+    const executable = join(root, "codex");
+    await writeFile(executable, `#!${process.execPath}
+const readline = require("node:readline");
+const lines = readline.createInterface({ input: process.stdin });
+lines.on("line", (line) => {
+  const message = JSON.parse(line);
+  if (message.id === undefined) return;
+  let result = {};
+  if (message.method === "thread/start") result = { thread: { id: "thread_test" } };
+  if (message.method === "turn/start") result = { turn: { id: "turn_test", status: "inProgress" } };
+  if (message.method === "thread/read") result = { thread: { turns: [{ id: "turn_test", status: "cancelled" }] } };
+  process.stdout.write(JSON.stringify({ id: message.id, result }) + "\\n");
+});
+`);
+    await chmod(executable, 0o700);
+    const harness = new CodexHarness(
+      { executable, searchPath: "/usr/bin:/bin", source: "override", version: "test" },
+      { turnPollIntervalMs: 10, turnTimeoutMs: 1_000 }
+    );
+    try {
+      const threadId = await harness.createThread(root);
+      await expect(harness.runTurn(threadId, root, "test", "yolo")).rejects.toThrow("cancelled");
+    } finally {
+      harness.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("surfaces a turn that repeatedly disappears from thread reads", async () => {
+    const root = await mkdtemp(join(tmpdir(), "pinhere-codex-missing-turn-"));
+    const executable = join(root, "codex");
+    await writeFile(executable, `#!${process.execPath}
+const readline = require("node:readline");
+const lines = readline.createInterface({ input: process.stdin });
+lines.on("line", (line) => {
+  const message = JSON.parse(line);
+  if (message.id === undefined) return;
+  let result = {};
+  if (message.method === "thread/start") result = { thread: { id: "thread_test" } };
+  if (message.method === "turn/start") result = { turn: { id: "turn_test", status: "inProgress" } };
+  if (message.method === "thread/read") result = { thread: { turns: [] } };
+  process.stdout.write(JSON.stringify({ id: message.id, result }) + "\\n");
+});
+`);
+    await chmod(executable, 0o700);
+    const harness = new CodexHarness(
+      { executable, searchPath: "/usr/bin:/bin", source: "override", version: "test" },
+      { turnPollIntervalMs: 10, turnTimeoutMs: 5_000, turnReadFailureLimit: 2 }
+    );
+    try {
+      const threadId = await harness.createThread(root);
+      await expect(harness.runTurn(threadId, root, "test", "yolo")).rejects.toThrow(
+        "turn turn_test was missing from thread thread_test"
+      );
+    } finally {
+      harness.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

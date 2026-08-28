@@ -29,6 +29,7 @@ const server = createServer(async (request, response) => {
   response.setHeader("content-type", "application/json");
   const send = (data: unknown) => response.end(JSON.stringify({ data }));
   if (request.method === "POST" && request.url === "/api/v1/agents/heartbeat") return send({ ok: true });
+  if (request.method === "GET" && request.url === "/api/v1/projects") return send([{ id: projectId, agentConcurrency: 1 }]);
   if (request.method === "POST" && request.url === "/api/v1/issues/claim-next") {
     claimBody = await jsonBody(request);
     return send({ issue: {

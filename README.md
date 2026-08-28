@@ -59,6 +59,10 @@ pinhere agent pause --project pinhere
 pinhere agent resume --project pinhere
 ```
 
+The daemon reports its own health every 30 seconds, independently of issue processing. Bound projects are scheduled in parallel. Each project defaults to one serial automatic repair; change **Automatic repair capacity** from the project's management dialog to allow 2–8 concurrent repairs within that project. Lowering the limit does not interrupt active repairs and takes effect when the next slot is filled.
+
+Codex turn state is observed through both completion events and `thread/read`. Transient observation failures are logged; three consecutive failures mark the agent run failed and release the issue instead of silently renewing its lease until the two-hour turn timeout.
+
 For local CLI development, set `PINHERE_BASE_URL=http://localhost:5173` before pairing and run commands with `pnpm --filter pinhere dev -- ...`.
 
 ## Validation

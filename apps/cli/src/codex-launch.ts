@@ -130,7 +130,7 @@ async function appServerHandshake(candidate: Candidate, timeoutMs: number) {
       lines.on("line", onLine);
       child.on("error", onError);
       child.on("exit", onExit);
-      child.stdin.write(`${JSON.stringify({ method: "initialize", id: 1, params: { clientInfo: { name: "pinhere-probe", title: "Pinhere probe", version: "0.2.4" } } })}\n`);
+      child.stdin.write(`${JSON.stringify({ method: "initialize", id: 1, params: { clientInfo: { name: "pinhere-probe", title: "Pinhere probe", version: "0.2.5" } } })}\n`);
     });
   } finally {
     lines.close();

@@ -10,7 +10,7 @@ import { defaultAgentName, installService, runWorker, serviceAction } from "./se
 import { installPinhereSkill, type SkillAgent } from "./skill-install.js";
 import { exposeProjectIdentifiers, listProjects, publicBinding, publicProject, requireProjectIdentifier, resolveProject, type Project } from "./projects.js";
 
-const VERSION = "0.2.4";
+const VERSION = "0.2.5";
 const argv = process.argv.slice(2);
 const jsonMode = argv.includes("--json");
 const args = argv.filter((value) => value !== "--json");

@@ -409,7 +409,7 @@
     "projects/updateProject": {
       "operationId": "updateProject",
       "summary": "更新项目",
-      "description": "使用 If-Match 更新项目名称或说明。",
+      "description": "使用 If-Match 更新项目名称、说明或自动修复并发量。",
       "method": "PATCH",
       "path": "/projects/{projectId}",
       "consumes": [
@@ -554,7 +554,7 @@
               "Idempotency-Key": "example-project-update"
             },
             "body": {
-              "name": "Checkout v2"
+              "agentConcurrency": 2
             }
           },
           "expectedStatus": "200"
@@ -5381,6 +5381,7 @@
           "name",
           "identifier",
           "description",
+          "agentConcurrency",
           "createdAt",
           "updatedAt",
           "version"
@@ -5425,6 +5426,16 @@
             "description": "项目说明。",
             "examples": [
               "Checkout experience issues"
+            ]
+          },
+          "agentConcurrency": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8,
+            "default": 1,
+            "description": "该项目允许同时运行的自动修复数量；默认 1 表示串行。",
+            "examples": [
+              1
             ]
           },
           "createdAt": {
@@ -5520,6 +5531,16 @@
               "Checkout experience issues"
             ]
           },
+          "agentConcurrency": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8,
+            "default": 1,
+            "description": "项目内自动修复并发量；缺省为串行。",
+            "examples": [
+              1
+            ]
+          },
           "origins": {
             "type": "array",
             "maxItems": 50,
@@ -5555,6 +5576,15 @@
             "description": "新的项目说明。",
             "examples": [
               "Updated checkout issues"
+            ]
+          },
+          "agentConcurrency": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8,
+            "description": "新的项目内自动修复并发量。",
+            "examples": [
+              2
             ]
           }
         }

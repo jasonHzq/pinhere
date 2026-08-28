@@ -409,7 +409,7 @@
     "projects/updateProject": {
       "operationId": "updateProject",
       "summary": "Update project",
-      "description": "Updates a project name or description using If-Match.",
+      "description": "Updates a project name, description, or automatic repair concurrency using If-Match.",
       "method": "PATCH",
       "path": "/projects/{projectId}",
       "consumes": [
@@ -554,7 +554,7 @@
               "Idempotency-Key": "example-project-update"
             },
             "body": {
-              "name": "Checkout v2"
+              "agentConcurrency": 2
             }
           },
           "expectedStatus": "200"
@@ -5381,6 +5381,7 @@
           "name",
           "identifier",
           "description",
+          "agentConcurrency",
           "createdAt",
           "updatedAt",
           "version"
@@ -5425,6 +5426,16 @@
             "description": "Project description.",
             "examples": [
               "Checkout experience issues"
+            ]
+          },
+          "agentConcurrency": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8,
+            "default": 1,
+            "description": "Maximum concurrent automatic repairs for this project; the default of 1 is serial.",
+            "examples": [
+              1
             ]
           },
           "createdAt": {
@@ -5520,6 +5531,16 @@
               "Checkout experience issues"
             ]
           },
+          "agentConcurrency": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8,
+            "default": 1,
+            "description": "Per-project automatic repair concurrency; defaults to serial.",
+            "examples": [
+              1
+            ]
+          },
           "origins": {
             "type": "array",
             "maxItems": 50,
@@ -5555,6 +5576,15 @@
             "description": "New project description.",
             "examples": [
               "Updated checkout issues"
+            ]
+          },
+          "agentConcurrency": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8,
+            "description": "New per-project automatic repair concurrency.",
+            "examples": [
+              2
             ]
           }
         }
