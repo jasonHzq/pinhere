@@ -43,6 +43,7 @@ import {
   readCaptureTutorialVisibility,
   shouldShowCaptureTutorial
 } from "@/lib/tutorial";
+import { visibleIssueIdentifier } from "@/lib/issue-reference";
 import type { Capture, PendingCapture, Project, Rect } from "@/types";
 
 type Phase = "loading" | "signed_out" | "ready" | "captured" | "submitting" | "success";
@@ -457,6 +458,8 @@ export function App() {
     setError("");
   };
 
+  const visibleIssueId = visibleIssueIdentifier({ id: issueId, idStatus: issueIdStatus });
+
   return (
     <main className="pinhere-popup">
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[#e4e8ee] bg-[#fffdfa]/95 px-4 py-3 backdrop-blur-xl">
@@ -633,7 +636,7 @@ export function App() {
             <div className="mb-6 grid size-14 place-items-center rounded-2xl bg-[#e4f6eb] text-[#2f7952]"><Check size={27} strokeWidth={2.5} /></div>
             <div className="eyebrow text-[#2f7952]">Issue created</div>
             <h1 className="mt-2 text-[28px] font-extrabold leading-tight tracking-[-.05em]">缺陷已进入看板</h1>
-            <div className="mt-4 flex items-center gap-2 rounded-xl border border-[#e0e5eb] bg-white p-3 font-mono text-xs">{issueIdStatus === "pending" ? <><LoaderCircle className="animate-spin text-[#315efb]" size={14} />正在生成可读 ID…</> : issueId}</div>
+            {visibleIssueId && <div aria-live="polite" className="mt-4 flex items-center gap-2 rounded-xl border border-[#e0e5eb] bg-white p-3 font-mono text-xs">{visibleIssueId}</div>}
             <div className="mt-6 space-y-2">
               <Button className="w-full" onClick={() => void copy()}>{copied ? <Check size={16} /> : <Clipboard size={16} />}{copied ? "已复制" : "复制修复 Prompt"}</Button>
               <Button className="w-full" variant="outline" onClick={() => void chrome.tabs.create({ url: `${BASE_URL}/zh-CN/app/issues/${encodeURIComponent(issueId)}` })}>查看缺陷详情 <ExternalLink size={15} /></Button>

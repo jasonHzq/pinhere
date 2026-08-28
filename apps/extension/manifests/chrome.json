@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Pinhere",
   "description": "选择网页 DOM 或自由框选截图区域，将缺陷上下文交给 AI 编程 Agent。",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "minimum_chrome_version": "116",
   "permissions": [
     "activeTab",
