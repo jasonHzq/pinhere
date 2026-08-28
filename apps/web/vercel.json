@@ -1,5 +1,42 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["iad1"],
+  "routes": [
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "header",
+          "key": "accept-language",
+          "value": "^en(?:[-_,;].*)?$"
+        }
+      ],
+      "dest": "/en",
+      "headers": {
+        "Vary": "Accept-Language",
+        "Cache-Control": "public, max-age=120, s-maxage=31536000"
+      }
+    },
+    {
+      "src": "^/$",
+      "dest": "/zh-CN",
+      "headers": {
+        "Vary": "Accept-Language",
+        "Cache-Control": "public, max-age=120, s-maxage=31536000"
+      }
+    }
+  ],
+  "headers": [
+    {
+      "source": "/:locale(en|zh-CN)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=120, s-maxage=31536000"
+        }
+      ]
+    }
+  ],
   "crons": [
     {
       "path": "/api/internal/cron/webhooks",

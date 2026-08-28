@@ -19,3 +19,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      - name: Ensure extension release artifacts are committed
+        run: |
+          changes="$(git status --porcelain --untracked-files=all -- apps/extension/manifests/chrome.json apps/web/public/downloads/pinhere-extension-v*.zip)"
+          if [ -n "$changes" ]; then
+            echo "$changes"
+            echo "Run 'pnpm extension:release <version>' and commit the generated release files."
+            exit 1
+          fi

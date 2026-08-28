@@ -9,11 +9,17 @@ export default [
   route("api/auth/*", "routes/auth-api.ts"),
   route("api/internal/cron/webhooks", "routes/webhook-cron.ts"),
   route(":locale", "routes/landing.tsx"),
+  route(":locale/privacy", "routes/privacy.tsx"),
+  route(":locale/support", "routes/support.tsx"),
   route(":locale/sign-in", "routes/sign-in.tsx"),
   route(":locale/extension/authorize", "routes/extension-authorize.tsx"),
+  route(":locale/extension/authorized", "routes/extension-authorized.tsx"),
+  route(":locale/pair", "routes/agent-pair.tsx"),
   route(":locale/app", "routes/app-layout.tsx", [
     index("routes/board.tsx"),
+    route("board", "routes/board.tsx", { id: "routes/board-alias" }),
     route("projects", "routes/projects.tsx"),
+    route("agent", "routes/agent-access.tsx"),
     route("issues/:issueId", "routes/issue-detail.tsx"),
     route("settings", "routes/settings.tsx")
   ])

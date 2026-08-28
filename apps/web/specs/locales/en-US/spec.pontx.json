@@ -5,13 +5,13 @@
   "info": {
     "title": "Pinhere API",
     "version": "1.0.0",
-    "description": "Pinhere API for projects, origins, issues, screenshots, webhooks, PATs, and browser-extension OAuth. Every endpoint handles private data or persistent changes, so public Pontx Hub proxy execution is disabled."
+    "description": "Pinhere API for projects, origins, issues, screenshots, agents, webhooks, PATs, and browser-extension OAuth. Every endpoint handles private data or persistent changes, so public Pontx Hub proxy execution is disabled."
   },
   "servers": [
     {
       "id": "production",
-      "url": "https://pinhere-jasonhzqs-projects.vercel.app/api/v1",
-      "description": "Pinhere production API on Vercel."
+      "url": "https://pinhere.dev/api/v1",
+      "description": "Pinhere production API."
     }
   ],
   "tags": [
@@ -26,6 +26,10 @@
     {
       "name": "attachments",
       "description": "Private screenshot upload and download."
+    },
+    {
+      "name": "agents",
+      "description": "Local agent pairing, heartbeats, and repair run history."
     },
     {
       "name": "webhooks",
@@ -219,7 +223,7 @@
           }
         },
         "409": {
-          "description": "An origin is already assigned to another project.",
+          "description": "The project identifier or an origin is already assigned.",
           "schema": {
             "$ref": "#/components/schemas/ErrorResponse"
           },
@@ -262,7 +266,8 @@
               "Idempotency-Key": "example-project-create"
             },
             "body": {
-              "name": "Checkout",
+              "name": "支付中心",
+              "identifier": "payment-center",
               "description": "Checkout experience issues",
               "origins": [
                 "https://shop.example.com"
@@ -404,7 +409,7 @@
     "projects/updateProject": {
       "operationId": "updateProject",
       "summary": "Update project",
-      "description": "Updates a project name or description using If-Match.",
+      "description": "Updates a project name, description, or automatic repair concurrency using If-Match.",
       "method": "PATCH",
       "path": "/projects/{projectId}",
       "consumes": [
@@ -549,7 +554,7 @@
               "Idempotency-Key": "example-project-update"
             },
             "body": {
-              "name": "Checkout v2"
+              "agentConcurrency": 2
             }
           },
           "expectedStatus": "200"
@@ -1194,7 +1199,7 @@
     "issues/createIssue": {
       "operationId": "createIssue",
       "summary": "Create issue",
-      "description": "Creates an issue and its issue.created outbox event in one transaction.",
+      "description": "Immediately creates an issue and its issue.created outbox event; a screenshot can be submitted in the same request, and readable-ID generation runs asynchronously.",
       "method": "POST",
       "path": "/issues",
       "consumes": [
@@ -1236,7 +1241,7 @@
       ],
       "responses": {
         "201": {
-          "description": "Issue created.",
+          "description": "Issue created; idStatus may still be pending.",
           "schema": {
             "type": "object",
             "description": "Created issue.",
@@ -1270,6 +1275,19 @@
         },
         "409": {
           "description": "Page origin does not match the project, or the screenshot is already used.",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        },
+        "413": {
+          "description": "The inline screenshot exceeds 2 MiB.",
           "schema": {
             "$ref": "#/components/schemas/ErrorResponse"
           },
@@ -1343,7 +1361,11 @@
                   "height": 44
                 }
               },
-              "attachmentId": "att_example",
+              "screenshot": {
+                "fileName": "checkout.webp",
+                "contentType": "image/webp",
+                "base64": "UklGRiQAAABXRUJQ"
+              },
               "source": "extension"
             }
           },
@@ -1374,9 +1396,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         }
@@ -1459,7 +1482,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {}
@@ -1493,9 +1516,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -1619,7 +1643,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -1655,9 +1679,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -1709,7 +1734,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -1743,9 +1768,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         }
@@ -1821,7 +1847,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {}
@@ -1853,9 +1879,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -1952,12 +1979,117 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
               "Idempotency-Key": "example-issue-claim"
             }
+          },
+          "expectedStatus": "200"
+        }
+      },
+      "metadata": {
+        "execution": {
+          "enabled": false,
+          "disabledReason": "This endpoint creates a persistent state change and is not proxied by Pontx Hub. The CLI must preview first and execute with caller-owned credentials only after explicit confirmation."
+        }
+      }
+    },
+    "issues/heartbeatIssue": {
+      "operationId": "heartbeatIssue",
+      "summary": "Renew issue claim",
+      "description": "The claimant extends an in-progress issue lease.",
+      "method": "POST",
+      "path": "/issues/{issueId}/heartbeat",
+      "consumes": [],
+      "produces": [
+        "application/json"
+      ],
+      "parameters": [
+        {
+          "in": "path",
+          "name": "issueId",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
+            "examples": [
+              "payment-center-checkout-button-does-not-submit"
+            ]
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Lease renewed.",
+          "schema": {
+            "type": "object",
+            "description": "Renewed issue.",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/Issue",
+                "description": "Renewed issue."
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Renewed issue.",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/Issue",
+                    "description": "Renewed issue."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Standard error response.",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        }
+      },
+      "tags": [
+        "issues"
+      ],
+      "security": [
+        {
+          "pinherePat": [
+            "issues:write"
+          ]
+        },
+        {
+          "websiteSession": []
+        }
+      ],
+      "requestExamples": {
+        "default": {
+          "request": {
+            "path": {
+              "issueId": "payment-center-checkout-button-does-not-submit"
+            },
+            "query": {},
+            "headers": {}
           },
           "expectedStatus": "200"
         }
@@ -2114,9 +2246,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -2241,7 +2374,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -2280,9 +2413,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -2407,7 +2541,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -2444,9 +2578,10 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           }
         },
@@ -2543,7 +2678,7 @@
         "default": {
           "request": {
             "path": {
-              "issueId": "iss_example"
+              "issueId": "payment-center-checkout-button-does-not-submit"
             },
             "query": {},
             "headers": {
@@ -2831,6 +2966,781 @@
         "execution": {
           "enabled": false,
           "disabledReason": "Responses contain private account resources, issue text, DOM context, screenshots, token metadata, or delivery diagnostics. Pontx Hub does not proxy execution; use caller-owned credentials only in a controlled local environment."
+        }
+      }
+    },
+    "agents/createAgentPairing": {
+      "operationId": "createAgentPairing",
+      "summary": "Create agent pairing",
+      "description": "Creates a one-time device pairing valid for ten minutes.",
+      "method": "POST",
+      "path": "/agent-pairings",
+      "consumes": [
+        "application/json"
+      ],
+      "produces": [
+        "application/json"
+      ],
+      "parameters": [
+        {
+          "name": "body",
+          "in": "body",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/AgentPairingInput"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentPairingInput"
+              }
+            }
+          }
+        }
+      ],
+      "responses": {
+        "201": {
+          "description": "Pairing created.",
+          "schema": {
+            "type": "object",
+            "description": "Pairing information.",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AgentPairing",
+                "description": "Pairing information."
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Pairing information.",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/AgentPairing",
+                    "description": "Pairing information."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Standard error response.",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        }
+      },
+      "tags": [
+        "agents"
+      ],
+      "security": [],
+      "requestExamples": {
+        "default": {
+          "request": {
+            "path": {},
+            "query": {},
+            "headers": {},
+            "body": {
+              "name": "Mac Agent",
+              "platform": "darwin-arm64",
+              "harness": "codex"
+            }
+          },
+          "expectedStatus": "201"
+        }
+      },
+      "metadata": {
+        "execution": {
+          "enabled": false,
+          "disabledReason": "This endpoint creates, rotates, or returns a one-time credential. Pontx Hub does not proxy it and its result must not be logged. The CLI must preview first and require explicit confirmation."
+        }
+      }
+    },
+    "agents/approveAgentPairing": {
+      "operationId": "approveAgentPairing",
+      "summary": "Approve agent pairing",
+      "description": "A website account approves a one-time user code.",
+      "method": "POST",
+      "path": "/agent-pairings/{userCode}/approve",
+      "consumes": [],
+      "produces": [
+        "application/json"
+      ],
+      "parameters": [
+        {
+          "in": "path",
+          "name": "userCode",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "examples": [
+              "ABCD-EFGH"
+            ]
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Pairing approved.",
+          "schema": {
+            "type": "object",
+            "description": "Approval result.",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "object",
+                "description": "Approval result."
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Approval result.",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "type": "object",
+                    "description": "Approval result."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Standard error response.",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        }
+      },
+      "tags": [
+        "agents"
+      ],
+      "security": [
+        {
+          "websiteSession": []
+        }
+      ],
+      "requestExamples": {
+        "default": {
+          "request": {
+            "path": {
+              "userCode": "ABCD-EFGH"
+            },
+            "query": {},
+            "headers": {}
+          },
+          "expectedStatus": "200"
+        }
+      },
+      "metadata": {
+        "execution": {
+          "enabled": false,
+          "disabledReason": "This endpoint creates, rotates, or returns a one-time credential. Pontx Hub does not proxy it and its result must not be logged. The CLI must preview first and require explicit confirmation."
+        }
+      }
+    },
+    "agents/exchangeAgentPairingToken": {
+      "operationId": "exchangeAgentPairingToken",
+      "summary": "Exchange agent token",
+      "description": "A device polls approval and receives an agent token once.",
+      "method": "POST",
+      "path": "/agent-pairings/token",
+      "consumes": [
+        "application/json"
+      ],
+      "produces": [
+        "application/json"
+      ],
+      "parameters": [
+        {
+          "name": "body",
+          "in": "body",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/AgentPairingTokenInput"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentPairingTokenInput"
+              }
+            }
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Agent paired.",
+          "schema": {
+            "type": "object",
+            "description": "Pairing token.",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AgentPairingTokenResult",
+                "description": "Pairing token."
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Pairing token.",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/AgentPairingTokenResult",
+                    "description": "Pairing token."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "202": {
+          "description": "Awaiting user approval.",
+          "schema": {
+            "type": "object",
+            "description": "Pending state.",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AgentPairingTokenResult",
+                "description": "Pending state."
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Pending state.",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/AgentPairingTokenResult",
+                    "description": "Pending state."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Standard error response.",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        }
+      },
+      "tags": [
+        "agents"
+      ],
+      "security": [],
+      "requestExamples": {
+        "default": {
+          "request": {
+            "path": {},
+            "query": {},
+            "headers": {},
+            "body": {
+              "deviceCode": "ph_dev_redacted"
+            }
+          },
+          "expectedStatus": "200"
+        }
+      },
+      "metadata": {
+        "execution": {
+          "enabled": false,
+          "disabledReason": "This endpoint exchanges and returns OAuth access and refresh tokens. Pontx Hub does not proxy it; credentials must remain in the caller environment and must not be logged."
+        }
+      }
+    },
+    "agents/listAgents": {
+      "operationId": "listAgents",
+      "summary": "List agents",
+      "description": "Lists paired agents for the current account.",
+      "method": "GET",
+      "path": "/agents",
+      "consumes": [],
+      "produces": [
+        "application/json"
+      ],
+      "parameters": [],
+      "responses": {
+        "200": {
+          "description": "Agent list.",
+          "schema": {
+            "type": "object",
+            "description": "Agent list.",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AgentInstance"
+                },
+                "description": "Agent list."
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Agent list.",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AgentInstance"
+                    },
+                    "description": "Agent list."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Standard error response.",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        }
+      },
+      "tags": [
+        "agents"
+      ],
+      "security": [
+        {
+          "pinherePat": [
+            "agents:write"
+          ]
+        },
+        {
+          "websiteSession": []
+        }
+      ],
+      "requestExamples": {
+        "default": {
+          "request": {
+            "path": {},
+            "query": {},
+            "headers": {}
+          },
+          "expectedStatus": "200"
+        }
+      },
+      "metadata": {
+        "execution": {
+          "enabled": false,
+          "disabledReason": "Responses contain private account resources, issue text, DOM context, screenshots, token metadata, or delivery diagnostics. Pontx Hub does not proxy execution; use caller-owned credentials only in a controlled local environment."
+        }
+      }
+    },
+    "agents/heartbeatAgent": {
+      "operationId": "heartbeatAgent",
+      "summary": "Agent heartbeat",
+      "description": "Updates agent liveness and CLI version.",
+      "method": "POST",
+      "path": "/agents/heartbeat",
+      "consumes": [
+        "application/json"
+      ],
+      "produces": [
+        "application/json"
+      ],
+      "parameters": [
+        {
+          "name": "body",
+          "in": "body",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/AgentHeartbeatInput"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentHeartbeatInput"
+              }
+            }
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Heartbeat recorded.",
+          "schema": {
+            "type": "object",
+            "description": "Agent.",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AgentInstance",
+                "description": "Agent."
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Agent.",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/AgentInstance",
+                    "description": "Agent."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Standard error response.",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        }
+      },
+      "tags": [
+        "agents"
+      ],
+      "security": [
+        {
+          "pinherePat": [
+            "agents:write"
+          ]
+        },
+        {
+          "websiteSession": []
+        }
+      ],
+      "requestExamples": {
+        "default": {
+          "request": {
+            "path": {},
+            "query": {},
+            "headers": {},
+            "body": {
+              "version": "0.1.0"
+            }
+          },
+          "expectedStatus": "200"
+        }
+      },
+      "metadata": {
+        "execution": {
+          "enabled": false,
+          "disabledReason": "This endpoint creates a persistent state change and is not proxied by Pontx Hub. The CLI must preview first and execute with caller-owned credentials only after explicit confirmation."
+        }
+      }
+    },
+    "agents/createAgentRun": {
+      "operationId": "createAgentRun",
+      "summary": "Create agent run",
+      "description": "Creates a run for an issue claimed by the current agent.",
+      "method": "POST",
+      "path": "/agent-runs",
+      "consumes": [
+        "application/json"
+      ],
+      "produces": [
+        "application/json"
+      ],
+      "parameters": [
+        {
+          "name": "body",
+          "in": "body",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/AgentRunInput"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentRunInput"
+              }
+            }
+          }
+        }
+      ],
+      "responses": {
+        "201": {
+          "description": "Run created.",
+          "schema": {
+            "type": "object",
+            "description": "Agent run.",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AgentRun",
+                "description": "Agent run."
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Agent run.",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/AgentRun",
+                    "description": "Agent run."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Standard error response.",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        }
+      },
+      "tags": [
+        "agents"
+      ],
+      "security": [
+        {
+          "pinherePat": [
+            "agents:write"
+          ]
+        },
+        {
+          "websiteSession": []
+        }
+      ],
+      "requestExamples": {
+        "default": {
+          "request": {
+            "path": {},
+            "query": {},
+            "headers": {},
+            "body": {
+              "issueId": "payment-center-checkout-button-does-not-submit",
+              "harness": "codex"
+            }
+          },
+          "expectedStatus": "201"
+        }
+      },
+      "metadata": {
+        "execution": {
+          "enabled": false,
+          "disabledReason": "This endpoint creates a persistent state change and is not proxied by Pontx Hub. The CLI must preview first and execute with caller-owned credentials only after explicit confirmation."
+        }
+      }
+    },
+    "agents/updateAgentRun": {
+      "operationId": "updateAgentRun",
+      "summary": "Update agent run",
+      "description": "Updates thread ID, status, summary, or error.",
+      "method": "PATCH",
+      "path": "/agent-runs/{runId}",
+      "consumes": [
+        "application/json"
+      ],
+      "produces": [
+        "application/json"
+      ],
+      "parameters": [
+        {
+          "in": "path",
+          "name": "runId",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "examples": [
+              "run_example"
+            ]
+          }
+        },
+        {
+          "name": "body",
+          "in": "body",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/AgentRunUpdateInput"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentRunUpdateInput"
+              }
+            }
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Run updated.",
+          "schema": {
+            "type": "object",
+            "description": "Agent run.",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AgentRun",
+                "description": "Agent run."
+              }
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Agent run.",
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/AgentRun",
+                    "description": "Agent run."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Standard error response.",
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorResponse"
+              }
+            }
+          }
+        }
+      },
+      "tags": [
+        "agents"
+      ],
+      "security": [
+        {
+          "pinherePat": [
+            "agents:write"
+          ]
+        },
+        {
+          "websiteSession": []
+        }
+      ],
+      "requestExamples": {
+        "default": {
+          "request": {
+            "path": {
+              "runId": "run_example"
+            },
+            "query": {},
+            "headers": {},
+            "body": {
+              "status": "running",
+              "externalThreadId": "thr_example"
+            }
+          },
+          "expectedStatus": "200"
+        }
+      },
+      "metadata": {
+        "execution": {
+          "enabled": false,
+          "disabledReason": "This endpoint creates a persistent state change and is not proxied by Pontx Hub. The CLI must preview first and execute with caller-owned credentials only after explicit confirmation."
         }
       }
     },
@@ -4239,15 +5149,15 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "ph_pat_*",
-        "description": "Caller-held Pinhere PAT with fixed projects:read, issues:read, and issues:write scopes."
+        "description": "Caller-held Pinhere PAT. Regular PATs contain project and issue scopes; paired-agent PATs additionally contain agents:write."
       },
       "extensionOAuth": {
         "type": "oauth2",
         "description": "OAuth 2.0 Authorization Code + PKCE for the Chrome extension.",
         "flows": {
           "authorizationCode": {
-            "authorizationUrl": "https://pinhere-jasonhzqs-projects.vercel.app/extension-authorize",
-            "tokenUrl": "https://pinhere-jasonhzqs-projects.vercel.app/api/v1/oauth/token",
+            "authorizationUrl": "https://pinhere.dev/extension-authorize",
+            "tokenUrl": "https://pinhere.dev/api/v1/oauth/token",
             "scopes": {
               "projects:read": "Read projects and resolve a project by page URL.",
               "issues:create": "Create issues.",
@@ -4276,9 +5186,10 @@
         "required": true,
         "schema": {
           "type": "string",
-          "description": "Issue ID.",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "description": "Readable issue ID; temporary creation IDs and historical aliases remain accepted.",
           "examples": [
-            "iss_example"
+            "payment-center-checkout-button-does-not-submit"
           ]
         }
       },
@@ -4327,6 +5238,28 @@
           "description": "Token ID.",
           "examples": [
             "pat_example"
+          ]
+        }
+      },
+      "UserCode": {
+        "in": "path",
+        "name": "userCode",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "examples": [
+            "ABCD-EFGH"
+          ]
+        }
+      },
+      "RunId": {
+        "in": "path",
+        "name": "runId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "examples": [
+            "run_example"
           ]
         }
       },
@@ -4446,7 +5379,9 @@
           "id",
           "userId",
           "name",
+          "identifier",
           "description",
+          "agentConcurrency",
           "createdAt",
           "updatedAt",
           "version"
@@ -4475,12 +5410,32 @@
               "Checkout"
             ]
           },
+          "identifier": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 32,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Stable project identifier used as the readable issue-ID prefix; immutable after creation.",
+            "examples": [
+              "payment-center"
+            ]
+          },
           "description": {
             "type": "string",
             "maxLength": 1000,
             "description": "Project description.",
             "examples": [
               "Checkout experience issues"
+            ]
+          },
+          "agentConcurrency": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8,
+            "default": 1,
+            "description": "Maximum concurrent automatic repairs for this project; the default of 1 is serial.",
+            "examples": [
+              1
             ]
           },
           "createdAt": {
@@ -4545,7 +5500,8 @@
         "description": "Creates a project with optional origins.",
         "type": "object",
         "required": [
-          "name"
+          "name",
+          "identifier"
         ],
         "properties": {
           "name": {
@@ -4557,12 +5513,32 @@
               "Checkout"
             ]
           },
+          "identifier": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 32,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Stable project identifier made of lowercase letters, numbers, and dashes.",
+            "examples": [
+              "payment-center"
+            ]
+          },
           "description": {
             "type": "string",
             "maxLength": 1000,
             "description": "Project description; defaults to an empty string.",
             "examples": [
               "Checkout experience issues"
+            ]
+          },
+          "agentConcurrency": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8,
+            "default": 1,
+            "description": "Per-project automatic repair concurrency; defaults to serial.",
+            "examples": [
+              1
             ]
           },
           "origins": {
@@ -4600,6 +5576,15 @@
             "description": "New project description.",
             "examples": [
               "Updated checkout issues"
+            ]
+          },
+          "agentConcurrency": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8,
+            "description": "New per-project automatic repair concurrency.",
+            "examples": [
+              2
             ]
           }
         }
@@ -4856,12 +5841,31 @@
           "extension"
         ]
       },
+      "IssueIdStatus": {
+        "title": "Issue ID generation status",
+        "description": "Async readable-ID generation status; fallback means a local identifier was used because the model was unavailable.",
+        "type": "string",
+        "enum": [
+          "pending",
+          "generated",
+          "fallback"
+        ],
+        "enumValueTitles": {
+          "pending": "Generating",
+          "generated": "Model generated",
+          "fallback": "Local fallback"
+        },
+        "examples": [
+          "generated"
+        ]
+      },
       "Issue": {
         "title": "Issue",
         "description": "Private issue containing page context and processing state.",
         "type": "object",
         "required": [
           "id",
+          "idStatus",
           "userId",
           "projectId",
           "title",
@@ -4877,10 +5881,14 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Issue ID.",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "Public issue ID; creation returns a temporary identifier that hides the internal key, then asynchronously replaces it with the project identifier and English issue description.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
+          },
+          "idStatus": {
+            "$ref": "#/components/schemas/IssueIdStatus"
           },
           "userId": {
             "type": "string",
@@ -4956,6 +5964,22 @@
               "2026-08-15T08:05:00.000Z"
             ]
           },
+          "claimExpiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Claim lease expiration time.",
+            "examples": [
+              "2026-08-15T12:05:00.000Z"
+            ]
+          },
+          "handoffPrompt": {
+            "type": "string",
+            "description": "Skill installation and issue handoff prompt for an AI.",
+            "examples": [
+              "请使用 Pinhere Skill 修复问题 payment-center-checkout-button-does-not-submit。"
+            ]
+          },
           "completedAt": {
             "type": "string",
             "format": "date-time",
@@ -5002,7 +6026,7 @@
       },
       "IssueDetail": {
         "title": "Issue details",
-        "description": "Issue and authenticated screenshot download path.",
+        "description": "Issue, handoff prompt, and authenticated screenshot download path.",
         "allOf": [
           {
             "$ref": "#/components/schemas/Issue"
@@ -5011,7 +6035,8 @@
             "type": "object",
             "description": "Issue-detail extension fields.",
             "required": [
-              "screenshotUrl"
+              "screenshotUrl",
+              "handoffPrompt"
             ],
             "properties": {
               "screenshotUrl": {
@@ -5020,6 +6045,13 @@
                 "description": "Relative download path for the associated screenshot, or null.",
                 "examples": [
                   "/api/v1/attachments/att_example"
+                ]
+              },
+              "handoffPrompt": {
+                "type": "string",
+                "description": "Skill installation and issue handoff prompt for an AI.",
+                "examples": [
+                  "请使用 Pinhere Skill 修复问题 payment-center-checkout-button-does-not-submit。"
                 ]
               }
             }
@@ -5076,10 +6108,14 @@
           },
           "attachmentId": {
             "type": "string",
-            "description": "ID of an unbound private screenshot.",
+            "description": "ID of an unbound private screenshot; cannot be submitted with screenshot.",
             "examples": [
               "att_example"
             ]
+          },
+          "screenshot": {
+            "$ref": "#/components/schemas/AttachmentInput",
+            "description": "Screenshot uploaded with the issue to avoid a separate attachment request; cannot be submitted with attachmentId."
           },
           "source": {
             "$ref": "#/components/schemas/IssueSource"
@@ -5136,7 +6172,7 @@
             "type": "string",
             "description": "Issue ID.",
             "examples": [
-              "iss_example"
+              "payment-center-checkout-button-does-not-submit"
             ]
           },
           "userId": {
@@ -5152,12 +6188,14 @@
             "enum": [
               "user",
               "api_token",
-              "extension"
+              "extension",
+              "system"
             ],
             "enumValueTitles": {
               "user": "Website user",
               "api_token": "API token",
-              "extension": "Browser extension"
+              "extension": "Browser extension",
+              "system": "System"
             },
             "examples": [
               "api_token"
@@ -5819,7 +6857,7 @@
                 "pattern": "^ph_pat_",
                 "description": "One-time PAT; must not be logged.",
                 "examples": [
-                  "ph_pat_<redacted>"
+                  "ph_pat_redacted_not_a_credential"
                 ]
               }
             }
@@ -5946,6 +6984,250 @@
             }
           }
         ]
+      },
+      "AgentPairingInput": {
+        "title": "Agent pairing input",
+        "type": "object",
+        "required": [
+          "name",
+          "platform"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "platform": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "harness": {
+            "type": "string",
+            "enum": [
+              "codex"
+            ]
+          }
+        }
+      },
+      "AgentPairing": {
+        "title": "Agent pairing",
+        "type": "object",
+        "required": [
+          "deviceCode",
+          "userCode",
+          "verificationUri",
+          "expiresIn",
+          "interval"
+        ],
+        "properties": {
+          "pairingId": {
+            "type": "string"
+          },
+          "deviceCode": {
+            "type": "string"
+          },
+          "userCode": {
+            "type": "string"
+          },
+          "verificationUri": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expiresIn": {
+            "type": "integer"
+          },
+          "interval": {
+            "type": "integer"
+          }
+        }
+      },
+      "AgentPairingTokenInput": {
+        "title": "Pairing token input",
+        "type": "object",
+        "required": [
+          "deviceCode"
+        ],
+        "properties": {
+          "deviceCode": {
+            "type": "string"
+          }
+        }
+      },
+      "AgentPairingTokenResult": {
+        "title": "Pairing token result",
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "paired"
+            ]
+          },
+          "token": {
+            "type": "string"
+          },
+          "tokenType": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "agent": {
+            "$ref": "#/components/schemas/AgentInstance",
+            "nullable": true
+          }
+        }
+      },
+      "AgentInstance": {
+        "title": "Agent instance",
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "platform",
+          "harness"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "harness": {
+            "type": "string",
+            "enum": [
+              "codex"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "AgentHeartbeatInput": {
+        "title": "Agent heartbeat input",
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "maxLength": 100
+          }
+        }
+      },
+      "AgentRun": {
+        "title": "Agent run",
+        "type": "object",
+        "required": [
+          "id",
+          "issueId",
+          "agentInstanceId",
+          "harness",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "issueId": {
+            "type": "string"
+          },
+          "agentInstanceId": {
+            "type": "string"
+          },
+          "harness": {
+            "type": "string",
+            "enum": [
+              "codex"
+            ]
+          },
+          "externalThreadId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "waiting",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "AgentRunInput": {
+        "title": "Create agent run input",
+        "type": "object",
+        "required": [
+          "issueId"
+        ],
+        "properties": {
+          "issueId": {
+            "type": "string"
+          },
+          "harness": {
+            "type": "string",
+            "enum": [
+              "codex"
+            ]
+          }
+        }
+      },
+      "AgentRunUpdateInput": {
+        "title": "Update agent run input",
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "waiting",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "externalThreadId": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "error": {
+            "type": "string",
+            "maxLength": 10000
+          }
+        }
       },
       "OAuthTokenResult": {
         "title": "OAuth token result",

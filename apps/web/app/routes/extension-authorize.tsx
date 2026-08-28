@@ -1,11 +1,18 @@
 import { useState } from "react";
-import { CheckCircle2, Puzzle, ShieldCheck } from "lucide-react";
-import { redirect, useLoaderData, useParams, useSearchParams } from "react-router";
+import { CheckCircle2, ShieldCheck } from "lucide-react";
+import type { MetaFunction } from "react-router";
+import { redirect, useParams } from "react-router";
 import type { Route } from "./+types/extension-authorize";
-import { Logo } from "~/components/logo";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
+import { BrandMark } from "~/components/logo";
+import { issueExtensionAuthorizationCode, parseExtensionRedirectUri } from "~/lib/extension-oauth.server";
 import { getPrincipal } from "~/lib/principal.server";
+
+export const meta: MetaFunction = () => [
+  { title: "Authorize extension | Pinhere" },
+  { name: "robots", content: "noindex, nofollow" }
+];
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const url = new URL(request.url);
@@ -20,18 +27,26 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   return { redirectUri, codeChallenge };
 }
 
+export async function action({ request, params }: Route.ActionArgs) {
+  const url = new URL(request.url);
+  const redirectUri = url.searchParams.get("redirect_uri");
+  const codeChallenge = url.searchParams.get("code_challenge");
+  const redirectTarget = redirectUri ? parseExtensionRedirectUri(redirectUri, url.origin) : null;
+  if (!redirectTarget || !codeChallenge || codeChallenge.length < 43 || codeChallenge.length > 128) {
+    throw new Response("Invalid OAuth parameters", { status: 400 });
+  }
+  const principal = await getPrincipal(request);
+  if (!principal) {
+    const returnTo = `${url.pathname}${url.search}`;
+    throw redirect(`/${params.locale ?? "zh-CN"}/sign-in?returnTo=${encodeURIComponent(returnTo)}`);
+  }
+  if (principal.actorType !== "user") throw new Response("A website session is required", { status: 403 });
+  throw redirect(await issueExtensionAuthorizationCode(principal.userId, redirectTarget, codeChallenge));
+}
+
 export default function ExtensionAuthorize() {
-  const { redirectUri, codeChallenge } = useLoaderData<typeof loader>();
   const { locale = "zh-CN" } = useParams();
   const en = locale === "en";
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  async function authorize() {
-    setBusy(true); setError("");
-    const response = await fetch("/api/v1/oauth/extension/authorize", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ redirectUri, codeChallenge }) });
-    const body = await response.json();
-    if (!response.ok) { setError(body.error?.message ?? "Authorization failed"); setBusy(false); return; }
-    window.location.assign(body.data.redirectUrl);
-  }
-  return <main className="noise grid min-h-screen place-items-center px-5 py-12"><div className="w-full max-w-[500px]"><div className="mb-8"><Logo locale={locale} /></div><Card className="overflow-hidden"><div className="bg-[#171916] p-7 text-white"><Puzzle className="mb-7 text-[#6c91ff]" size={28} /><div className="font-mono text-[10px] uppercase tracking-[.18em] text-white/45">Chrome Extension</div><h1 className="mt-3 text-3xl font-extrabold tracking-[-.05em]">{en ? "Connect Pinhere" : "连接 Pinhere 扩展"}</h1><p className="mt-3 text-sm leading-6 text-white/60">{en ? "The extension will receive only the permissions needed to resolve projects, create issues and upload screenshots." : "扩展只会获得匹配项目、创建缺陷和上传截图所需的最小权限。"}</p></div><div className="p-7"><ul className="mb-7 space-y-3 text-sm">{[en ? "Read your project origins" : "读取你的项目 Origin", en ? "Create issues from selected pages" : "从圈选页面创建缺陷", en ? "Upload private screenshots" : "上传私有截图"].map((item) => <li key={item} className="flex items-center gap-3"><CheckCircle2 size={17} className="text-[#1d7a52]" />{item}</li>)}</ul><div className="mb-5 flex items-start gap-2 rounded-xl bg-[#ebe9e2] p-3 text-[11px] leading-5 text-[#696d67]"><ShieldCheck className="mt-0.5 shrink-0 text-[#164dd8]" size={15} />{en ? "Pinhere never requests access to every website or Chrome debugger data." : "Pinhere 不会申请访问所有网站，也不会读取 Chrome 调试器数据。"}</div>{error && <p className="mb-3 text-xs text-[#bb2d3b]">{error}</p>}<Button className="w-full" size="lg" disabled={busy} onClick={() => void authorize()}>{busy ? "…" : en ? "Authorize extension" : "授权 Chrome 扩展"}</Button></div></Card></div></main>;
+  return <main className="workspace-grid noise grid min-h-screen place-items-center px-5 py-12 text-[#171a1d]"><div className="w-full max-w-[520px]"><Card className="warm-panel overflow-hidden"><div className="relative overflow-hidden bg-[#202a33] p-7 text-white sm:p-9"><span className="absolute -right-14 -top-16 size-52 rounded-full border border-white/10" /><span className="absolute -right-4 -top-7 size-28 rounded-full border border-white/10" /><BrandMark className="relative mb-8 size-11 drop-shadow-[0_7px_18px_rgba(0,0,0,.28)]" /><div className="relative font-mono text-[10px] uppercase tracking-[.16em] text-[#8eabbc]">Browser Extension</div><h1 className="font-display relative mt-3 text-3xl font-bold tracking-[-.04em] sm:text-4xl">{en ? "Connect Pinhere" : "连接 Pinhere 扩展"}</h1><p className="relative mt-3 text-sm leading-6 text-white/62">{en ? "The extension will receive only the permissions needed to resolve projects, create issues and upload screenshots." : "扩展只会获得匹配项目、创建缺陷和上传截图所需的最小权限。"}</p></div><div className="p-7 sm:p-9"><ul className="mb-7 space-y-3 text-sm">{[en ? "Read your project origins" : "读取你的项目 Origin", en ? "Create issues from selected pages" : "从圈选页面创建缺陷", en ? "Upload private screenshots" : "上传私有截图"].map((item) => <li key={item} className="flex items-center gap-3"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#e7edf2] text-[#405d6e]"><CheckCircle2 size={15} /></span>{item}</li>)}</ul><div className="mb-6 flex items-start gap-2.5 rounded-2xl border border-[#d8dee4] bg-[#f1f4f6] p-3.5 text-[11px] leading-5 text-[#606b74]"><ShieldCheck className="mt-0.5 shrink-0 text-[#4b6574]" size={16} />{en ? "Pinhere never requests access to every website or browser debugger data." : "Pinhere 不会申请访问所有网站，也不会读取浏览器调试器数据。"}</div><form method="post" onSubmit={() => setBusy(true)}><Button className="w-full" size="lg" pending={busy} pendingLabel={en ? "Authorizing…" : "正在授权…"} type="submit">{en ? "Authorize extension" : "授权浏览器扩展"}</Button></form></div></Card></div></main>;
 }

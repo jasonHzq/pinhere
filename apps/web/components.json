@@ -3,7 +3,22 @@
   "style": "new-york",
   "rsc": false,
   "tsx": true,
-  "tailwind": { "css": "app/styles.css", "baseColor": "neutral", "cssVariables": true },
-  "aliases": { "components": "~/components", "utils": "~/lib/cn", "ui": "~/components/ui", "lib": "~/lib", "hooks": "~/hooks" },
-  "iconLibrary": "lucide"
+  "tailwind": {
+    "config": "",
+    "css": "app/styles.css",
+    "baseColor": "neutral",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "iconLibrary": "lucide",
+  "aliases": {
+    "components": "~/components",
+    "utils": "~/lib/utils",
+    "ui": "~/components/ui",
+    "lib": "~/lib",
+    "hooks": "~/lib/hooks"
+  },
+  "registries": {
+    "@beui": "https://beui.dev/r/{name}.json"
+  }
 }

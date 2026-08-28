@@ -1,0 +1,1 @@
+ALTER TABLE "project" ADD COLUMN "agentConcurrency" integer DEFAULT 1 NOT NULL;

@@ -5,6 +5,8 @@ node_modules
 .env.local
 build
 dist
+apps/extension/dist-safari
+apps/extension/pinhere-safari-web-extension.zip
 coverage
 .react-router
 .vercel

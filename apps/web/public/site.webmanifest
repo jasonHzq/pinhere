@@ -1,0 +1,16 @@
+{
+  "name": "Pinhere",
+  "short_name": "Pinhere",
+  "description": "Visual bug reporting for AI coding agents.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#121212",
+  "icons": [
+    {
+      "src": "/pinhere-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

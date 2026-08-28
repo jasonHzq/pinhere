@@ -1,9 +1,12 @@
 export function loader() {
-  const updated = new Date().toISOString().slice(0, 10);
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-  <url><loc>https://pinhere-jasonhzqs-projects.vercel.app/zh-CN</loc><lastmod>${updated}</lastmod><xhtml:link rel="alternate" hreflang="en" href="https://pinhere-jasonhzqs-projects.vercel.app/en"/><xhtml:link rel="alternate" hreflang="zh-CN" href="https://pinhere-jasonhzqs-projects.vercel.app/zh-CN"/></url>
-  <url><loc>https://pinhere-jasonhzqs-projects.vercel.app/en</loc><lastmod>${updated}</lastmod><xhtml:link rel="alternate" hreflang="en" href="https://pinhere-jasonhzqs-projects.vercel.app/en"/><xhtml:link rel="alternate" hreflang="zh-CN" href="https://pinhere-jasonhzqs-projects.vercel.app/zh-CN"/></url>
+  <url><loc>https://pinhere.dev/zh-CN</loc><xhtml:link rel="alternate" hreflang="en" href="https://pinhere.dev/en"/><xhtml:link rel="alternate" hreflang="zh-CN" href="https://pinhere.dev/zh-CN"/><xhtml:link rel="alternate" hreflang="x-default" href="https://pinhere.dev/"/></url>
+  <url><loc>https://pinhere.dev/en</loc><xhtml:link rel="alternate" hreflang="en" href="https://pinhere.dev/en"/><xhtml:link rel="alternate" hreflang="zh-CN" href="https://pinhere.dev/zh-CN"/><xhtml:link rel="alternate" hreflang="x-default" href="https://pinhere.dev/"/></url>
+  <url><loc>https://pinhere.dev/zh-CN/privacy</loc><xhtml:link rel="alternate" hreflang="en" href="https://pinhere.dev/en/privacy"/><xhtml:link rel="alternate" hreflang="zh-CN" href="https://pinhere.dev/zh-CN/privacy"/></url>
+  <url><loc>https://pinhere.dev/en/privacy</loc><xhtml:link rel="alternate" hreflang="en" href="https://pinhere.dev/en/privacy"/><xhtml:link rel="alternate" hreflang="zh-CN" href="https://pinhere.dev/zh-CN/privacy"/></url>
+  <url><loc>https://pinhere.dev/zh-CN/support</loc><xhtml:link rel="alternate" hreflang="en" href="https://pinhere.dev/en/support"/><xhtml:link rel="alternate" hreflang="zh-CN" href="https://pinhere.dev/zh-CN/support"/></url>
+  <url><loc>https://pinhere.dev/en/support</loc><xhtml:link rel="alternate" hreflang="en" href="https://pinhere.dev/en/support"/><xhtml:link rel="alternate" hreflang="zh-CN" href="https://pinhere.dev/zh-CN/support"/></url>
 </urlset>`;
   return new Response(xml, { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=86400" } });
 }

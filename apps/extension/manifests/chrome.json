@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "Pinhere",
+  "description": "选择网页 DOM 或自由框选截图区域，将缺陷上下文交给 AI 编程 Agent。",
+  "version": "0.1.14",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "identity"
+  ],
+  "host_permissions": [
+    "https://pinhere.dev/*",
+    "https://pinhere-delta.vercel.app/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "打开 Pinhere",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/pinhere-16.png",
+      "32": "icons/pinhere-32.png",
+      "48": "icons/pinhere-48.png",
+      "128": "icons/pinhere-128.png"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "capture-editor.html",
+        "assets/*",
+        "icons/*"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "use_dynamic_url": true
+    }
+  ],
+  "icons": {
+    "16": "icons/pinhere-16.png",
+    "32": "icons/pinhere-32.png",
+    "48": "icons/pinhere-48.png",
+    "128": "icons/pinhere-128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

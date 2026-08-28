@@ -8,11 +8,15 @@
   },
   "scripts": {
     "dev": "pnpm --parallel --filter './apps/*' dev",
+    "prebuild": "pnpm extension:package",
     "build": "pnpm --filter './apps/*' build",
+    "extension:package": "node scripts/release-extension.mjs",
+    "extension:release": "node scripts/release-extension.mjs",
+    "extension:release:check": "node scripts/release-extension.mjs --check",
     "lint": "pnpm --filter './apps/*' lint",
     "typecheck": "pnpm --filter './apps/*' typecheck",
     "test": "pnpm --filter './apps/*' test",
     "spec:check": "pnpm --filter @pinhere/web spec:check",
-    "check": "pnpm lint && pnpm typecheck && pnpm spec:check && pnpm test && pnpm build"
+    "check": "pnpm lint && pnpm typecheck && pnpm spec:check && pnpm test && pnpm build && pnpm extension:release:check"
   }
 }
