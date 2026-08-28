@@ -67,6 +67,9 @@ rmSync(archivePath, { force: true });
 const normalizedTime = new Date("1980-01-01T00:00:00.000Z");
 const files = filesUnder(distPath);
 for (const file of files) utimesSync(file, normalizedTime, normalizedTime);
-execFileSync("zip", ["-X", "-q", archivePath, ...files.map((file) => relative(distPath, file))], { cwd: distPath });
+execFileSync("zip", ["-X", "-q", archivePath, ...files.map((file) => relative(distPath, file))], {
+  cwd: distPath,
+  env: { ...process.env, TZ: "UTC" }
+});
 
 console.log(`Chrome 扩展已发布：v${extensionPackage.version} → ${relative(repositoryRoot, archivePath)}`);
