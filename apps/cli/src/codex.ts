@@ -76,6 +76,9 @@ export class CodexHarness {
       for (const listener of this.exitListeners) listener(error);
       this.pending.clear(); this.listeners.clear(); this.exitListeners.clear();
     };
+    child.stdin.on("error", (error) => {
+      failProcess(new Error(`Codex App Server closed its input: ${error.message}`));
+    });
     child.on("error", (error) => failProcess(new Error(`Codex App Server failed to start: ${error.message}`)));
     child.on("exit", (code) => {
       const error = new Error(`Codex App Server exited (${code ?? "signal"})${stderr ? `: ${stderr.trim()}` : ""}`);
@@ -125,7 +128,9 @@ export class CodexHarness {
         if (!error) return;
         const waiter = this.pending.get(id);
         if (!waiter) return;
-        this.pending.delete(id); clearTimeout(waiter.timer); waiter.reject(error);
+        this.pending.delete(id);
+        clearTimeout(waiter.timer);
+        waiter.reject(new Error(`Codex App Server closed its input while sending ${method}: ${error.message}`));
       });
     });
   }
